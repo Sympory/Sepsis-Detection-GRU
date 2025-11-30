@@ -5,15 +5,71 @@
 const API_URL = 'http://localhost:5000';
 let currentPatientId = null;
 let riskChart = null;
+let currentUser = null;
 
 // ============================================================================
 // SAYFA YÜKLENDİĞİNDE
 // ============================================================================
 
-document.addEventListener('DOMContentLoaded', function () {
+document.addEventListener('DOMContentLoaded', async function () {
+    // Authentication kontrolü
+    await checkAuth();
+
+    // Kullanıcı bilgisini yükle ve göster
+    await loadUserInfo();
+
+    // Ana içeriği yükle
     loadPatients();
     updateNextHour();
 });
+
+// ============================================================================
+// AUTHENTICATION KONTROLÜ
+// ============================================================================
+
+async function checkAuth() {
+    try {
+        const response = await fetch(`${API_URL}/api/auth/me`);
+        const data = await response.json();
+
+        if (!data.success) {
+            // Login olmamış, login sayfasına yönlendir
+            window.location.href = '/login.html';
+            return false;
+        }
+
+        currentUser = data.user;
+        return true;
+    } catch (error) {
+        console.error('Auth check error:', error);
+        window.location.href = '/login.html';
+        return false;
+    }
+}
+
+async function loadUserInfo() {
+    if (currentUser) {
+        // Kullanıcı adını header'da göster
+        const userInfoDiv = document.getElementById('user-info');
+        if (userInfoDiv) {
+            userInfoDiv.innerHTML = `
+                <span class="user-name">👤 ${currentUser.username}</span>
+                <button class="btn btn-secondary btn-sm" onclick="logout()">Çıkış</button>
+            `;
+        }
+    }
+}
+
+function logout() {
+    fetch(`${API_URL}/api/auth/logout`, { method: 'POST' })
+        .then(() => {
+            window.location.href = '/login.html';
+        })
+        .catch(err => {
+            console.error('Logout error:', err);
+            window.location.href = '/login.html';
+        });
+}
 
 // ============================================================================
 // HASTA LİSTESİ FONKSİYONLARI
@@ -291,7 +347,7 @@ async function addHourlyData(event) {
 
     const hour = parseInt(document.getElementById('hour-input').value);
 
-    // Form verilerini topla - 34 klinik parametre
+    // Form verilerini topla - 34 klinik parametre + 22 yeni biomarker = 56 toplam
     const vitalSigns = {};
     const fields = [
         // Vital Signs
@@ -311,7 +367,17 @@ async function addHourlyData(event) {
         // Hematology
         'WBC', 'Hct', 'Hgb', 'Platelets',
         // Coagulation & Cardiac
-        'PTT', 'Fibrinogen', 'TroponinI'
+        'PTT', 'Fibrinogen', 'TroponinI',
+
+        // ========== PHASE 2: NEW BIOMARKERS ==========
+        // Sepsis Markers
+        'PCT', 'CRP', 'Presepsin', 'IL6', 'IL1b',
+        // Hematology Extended
+        'ESR', 'MDW', 'MPV', 'RDW', 'Neutrophils', 'Lymphocytes',
+        // Coagulation Extended
+        'DDimer', 'PT', 'aPTT', 'INR',
+        // Chemistry Extended
+        'IonizedCalcium', 'Phosphorus', 'Albumin', 'Sodium'
     ];
 
     fields.forEach(field => {

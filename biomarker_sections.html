@@ -1,0 +1,144 @@
+<!-- NEW BIOMARKER SECTIONS - Phase 2 -->
+<!-- To be inserted before submit button in index.html line 289 -->
+
+<!-- NEW: Sepsis-Specific Biomarkers -->
+<h4 class="section-toggle" onclick="toggleSection('sepsis-markers')">
+    🔬 Sepsis Biomarker'ları (Yeni) <span class="toggle-icon">▼</span>
+</h4>
+<div id="sepsis-markers" class="collapsible-section">
+    <div class="form-row">
+        <div class="form-group">
+            <label>Procalcitonin (PCT)</label>
+            <input type="number" id="PCT" step="0.01" placeholder="< 0.5">
+            <small>ng/mL | Normal: <0.5 | Sepsis:>2.0</small>
+        </div>
+        <div class="form-group">
+            <label>C-Reactive Protein (CRP)</label>
+            <input type="number" id="CRP" step="0.1" placeholder="< 10">
+            <small>mg/L | Normal: <10 | Sepsis:>50</small>
+        </div>
+        <div class="form-group">
+            <label>Presepsin</label>
+            <input type="number" id="Presepsin" step="1" placeholder="< 600">
+            <small>pg/mL | Normal: <600 | Sepsis:>800</small>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Interleukin-6 (IL-6)</label>
+            <input type="number" id="IL6" step="0.1" placeholder="< 7">
+            <small>pg/mL | Cytokine storm marker</small>
+        </div>
+        <div class="form-group">
+            <label>Interleukin-1β (IL-1β)</label>
+            <input type="number" id="IL1b" step="0.1" placeholder="< 5">
+            <small>pg/mL | İnflamasyon marker</small>
+        </div>
+    </div>
+</div>
+
+<!-- NEW: Hematology Extended -->
+<h4 class="section-toggle" onclick="toggleSection('hematology-ext')">
+    🩸 Hematoloji Genişletilmiş (Yeni) <span class="toggle-icon">▼</span>
+</h4>
+<div id="hematology-ext" class="collapsible-section">
+    <div class="form-row">
+        <div class="form-group">
+            <label>ESR (Sedimentasyon)</label>
+            <input type="number" id="ESR" step="1" placeholder="< 20">
+            <small>mm/hr | Sepsis: >30</small>
+        </div>
+        <div class="form-group">
+            <label>MDW</label>
+            <input type="number" id="MDW" step="0.1" placeholder="19-21">
+            <small>Unit | Sepsis: >23</small>
+        </div>
+        <div class="form-group">
+            <label>MPV</label>
+            <input type="number" id="MPV" step="0.1" placeholder="7.5-11.5">
+            <small>fL | Mean platelet volume</small>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>RDW</label>
+            <input type="number" id="RDW" step="0.1" placeholder="11.5-14.5">
+            <small>% | Red cell distribution</small>
+        </div>
+        <div class="form-group">
+            <label>Neutrophils</label>
+            <input type="number" id="Neutrophils" step="0.1" placeholder="2-7">
+            <small>K/µL | For NLR calculation</small>
+        </div>
+        <div class="form-group">
+            <label>Lymphocytes</label>
+            <input type="number" id="Lymphocytes" step="0.1" placeholder="1-3">
+            <small>K/µL | For NLR calculation</small>
+        </div>
+    </div>
+    <p class="info-text"><strong>Auto-calculated:</strong> NLR = Neutrophils / Lymphocytes, PLR = Platelets /
+        Lymphocytes</p>
+</div>
+
+<!-- NEW: Coagulation Panel Extended -->
+<h4 class="section-toggle" onclick="toggleSection('coag-ext')">
+    🩹 Pıhtılaşma Paneli Genişletilmiş (Yeni) <span class="toggle-icon">▼</span>
+</h4>
+<div id="coag-ext" class="collapsible-section">
+    <div class="form-row">
+        <div class="form-group">
+            <label>D-Dimer</label>
+            <input type="number" id="DDimer" step="0.1" placeholder="< 0.5">
+            <small>μg/mL | D IC: >1.5</small>
+        </div>
+        <div class="form-group">
+            <label>PT</label>
+            <input type="number" id="PT" step="0.1" placeholder="11-13.5">
+            <small>seconds | Prothrombin time</small>
+        </div>
+        <div class="form-group">
+            <label>aPTT</label>
+            <input type="number" id="aPTT" step="0.1" placeholder="25-35">
+            <small>seconds | Activated PTT</small>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>INR</label>
+            <input type="number" id="INR" step="0.01" placeholder="0.8-1.2">
+            <small>ratio</small>
+        </div>
+    </div>
+</div>
+
+<!-- NEW: Chemistry Extended -->
+<h4 class="section-toggle" onclick="toggleSection('chem-ext')">
+    ⚗️ Kimya Paneli Genişletilmiş (Yeni) <span class="toggle-icon">▼</span>
+</h4>
+<div id="chem-ext" class="collapsible-section">
+    <div class="form-row">
+        <div class="form-group">
+            <label>Ionized Calcium (Ca++)</label>
+            <input type="number" id="IonizedCalcium" step="0.01" placeholder="1.16-1.32">
+            <small>mmol/L | Sepsis: low</small>
+        </div>
+        <div class="form-group">
+            <label>Phosphorus</label>
+            <input type="number" id="Phosphorus" step="0.1" placeholder="2.5-4.5">
+            <small>mg/dL</small>
+        </div>
+        <div class="form-group">
+            <label>Albumin</label>
+            <input type="number" id="Albumin" step="0.1" placeholder="3.5-5.5">
+            <small>g/dL | Sepsis: low</small>
+        </div>
+    </div>
+    <div class="form-row">
+        <div class="form-group">
+            <label>Sodium (Na)</label>
+            <input type="number" id="Sodium" step="0.1" placeholder="135-145">
+            <small>mmol/L | For Anion Gap</small>
+        </div>
+    </div>
+    <p class="info-text"><strong>Auto-calculated:</strong> Anion Gap = Na - (Cl + HCO3), Shock Index = HR / SBP</p>
+</div>

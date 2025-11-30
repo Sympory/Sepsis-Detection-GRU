@@ -248,12 +248,12 @@ def main():
         description='GRU modelini eğit'
     )
     # 'required=True' kısmını kaldırdık ve dosya yolunu 'default' olarak verdik
-parser.add_argument(
-    '--data',
-     type=str,
-     default='data/train.csv',
-     help='Veri yolu'
-     )
+    parser.add_argument(
+        '--data',
+        type=str,
+        default='data/train.csv',
+        help='Veri yolu'
+    )
     parser.add_argument(
         '--output',
         type=str,

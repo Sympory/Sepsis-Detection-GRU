@@ -1,0 +1,56 @@
+/* NEW: Collapsible Biomarker Sections */
+.section-toggle {
+    font-size: 1.1rem;
+    margin: 25px 0 12px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    user-select: none;
+}
+
+.section-toggle:hover {
+    background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+    transform: translateX(4px);
+}
+
+.toggle-icon {
+    font-size: 0.9rem;
+    transition: transform 0.3s ease;
+}
+
+.section-toggle.collapsed .toggle-icon {
+    transform: rotate(-90deg);
+}
+
+.collapsible-section {
+    max-height: 1000px;
+    overflow: hidden;
+    transition: max-height 0.4s ease, opacity 0.3s ease, margin 0.3s ease;
+    opacity: 1;
+    margin-bottom: 15px;
+}
+
+.collapsible-section.collapsed {
+    max-height: 0;
+    opacity: 0;
+    margin-bottom: 0;
+}
+
+.info-text {
+    background: #eff6ff;
+    padding: 12px 16px;
+    border-radius: 6px;
+    border-left: 4px solid var(--primary);
+    font-size: 0.9rem;
+    margin-top: 15px;
+    color: #1e40af;
+}
+
+.info-text strong {
+    color: var(--primary);
+}

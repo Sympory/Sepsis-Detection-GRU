@@ -31,20 +31,11 @@ CORS(app)
 
 # Global değişkenler
 model = None
-imputer = None
-scaler = None
-ohe = None
-numerical_columns = None
-categorical_columns = None
 
-# Model ve dosya yolları
+# Dosya yolları
+DB_PATH = 'patients.db'
 MODEL_PATH = 'models/gru_v23_best.keras'
 PREPROCESSING_DIR = 'data/processed'
-DB_PATH = 'patients.db'
-
-# ============================================================================
-# VERİTABANI FONKSİYONLARI
-# ============================================================================
 
 def init_database():
     """Veritabanını oluştur ve tabloları tanımla"""
@@ -550,6 +541,49 @@ def delete_patient(patient_id):
             'success': False,
             'error': str(e)
         }), 500
+
+
+# ============================================================================
+# AUTHENTICATION ENDPOINTS (Demo Mode for SQLite)
+# ============================================================================
+
+@app.route('/api/hospitals', methods=['GET'])
+def get_hospitals():
+    """Get list of hospitals for login"""
+    return jsonify({
+        'success': True,
+        'hospitals': [{'id': 1, 'name': 'Demo Hospital', 'code': 'DEMO'}]
+    }), 200
+
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Demo login - accepts any credentials"""
+    data = request.get_json() or {}
+    return jsonify({
+        'success': True,
+        'user': {
+            'id': 1,
+            'username': data.get('username', 'demo'),
+            'role': 'doctor',
+            'hospital_name': 'Demo Hospital'
+        }
+    }), 200
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def logout():
+    """Logout"""
+    return jsonify({'success': True}), 200
+
+
+@app.route('/api/auth/me', methods=['GET'])
+def get_current_user():
+    """Get current user info"""
+    return jsonify({
+        'success': True,
+        'user': {'id': 1, 'username': 'demo', 'role': 'doctor'}
+    }), 200
 
 
 @app.route('/api/health', methods=['GET'])

@@ -82,7 +82,7 @@ This project implements a **Gated Recurrent Unit (GRU)** deep learning model to 
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/sepsis-detection-gru.git
+git clone https://github.com/Sympory/Sepsis-Detection-GRU.git
 cd sepsis-detection-gru
 ```
 

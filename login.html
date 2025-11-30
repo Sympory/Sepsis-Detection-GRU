@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Giriş - Sepsis Erken Tespit Sistemi</title>
+    <link rel="stylesheet" href="login_style.css">
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="logo-section">
+                <div class="logo-icon">🏥</div>
+                <h1>Sepsis Erken Tespit Sistemi</h1>
+                <p class="subtitle">Y
+
+                    oğun Bakım İzleme Platformu</p>
+            </div>
+
+            <form id="loginForm" class="login-form">
+                <div id="errorMessage" class="error-message" style="display: none;"></div>
+
+                <div class="form-group">
+                    <label for="hospital">Hastane</label>
+                    <select id="hospital" name="hospital" required>
+                        <option value="">Hastane seçiniz...</option>
+                        <!-- Will be populated dynamically -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="username">Kullanıcı Adı</label>
+                    <input type="text" id="username" name="username" required placeholder="Kullanıcı adınızı girin"
+                        autocomplete="username">
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Şifre</label>
+                    <div class="password-input">
+                        <input type="password" id="password" name="password" required placeholder="Şifrenizi girin"
+                            autocomplete="current-password">
+                        <button type="button" class="toggle-password" onclick="togglePassword()">
+                            <span id="eyeIcon">👁️</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="form-options">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="rememberMe" name="rememberMe">
+                        Beni hatırla
+                    </label>
+                    <a href="#" class="forgot-password">Şifremi unuttum?</a>
+                </div>
+
+                <button type="submit" class="login-button" id="loginButton">
+                    <span id="buttonText">Giriş Yap</span>
+                    <span id="buttonLoader" class="loader" style="display: none;"></span>
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <p>© 2025 Sepsis Detection System. Tüm hakları saklıdır.</p>
+                <p class="version">v2.0.0</p>
+            </div>
+        </div>
+
+        <div class="info-panel">
+            <h2>Hoş Geldiniz</h2>
+            <div class="info-item">
+                <div class="info-icon">🎯</div>
+                <div class="info-text">
+                    <h3>Erken Tespit</h3>
+                    <p>Yapay zeka destekli sepsis risk tahmini</p>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-icon">⏱️</div>
+                <div class="info-text">
+                    <h3>Gerçek Zamanlı</h3>
+                    <p>Hasta bazlı saatlik izleme</p>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-icon">📊</div>
+                <div class="info-text">
+                    <h3>Detaylı Raporlama</h3>
+                    <p>Kapsamlı analiz ve trend görüntüleme</p>
+                </div>
+            </div>
+            <div class="info-item">
+                <div class="info-icon">🔒</div>
+                <div class="info-text">
+                    <h3>Güvenli</h3>
+                    <p>KVKK uyumlu veri koruma</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="login.js"></script>
+</body>
+
+</html>
