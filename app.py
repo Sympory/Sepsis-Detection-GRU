@@ -83,6 +83,100 @@ def get_db():
 
 
 # ============================================================================
+# VALIDATION RANGES & FUNCTIONS
+# ============================================================================
+
+VITAL_SIGN_RANGES = {
+    # Vital Signs
+    'HR': (40, 200),
+    'Temp': (35, 42),
+    'SBP': (60, 250),
+    'DBP': (30, 150),
+    'MAP': (40, 180),
+    'Resp': (8, 50),
+    'O2Sat': (70, 100),
+    'EtCO2': (10, 80),
+    
+    # Lab - Hematology
+    'WBC': (1, 50),
+    'Platelets': (20, 800),
+    'Hgb': (5, 20),
+    'Hct': (15, 65),
+    
+    # Lab - Chemistry  
+    'Creatinine': (0.3, 15),
+    'BUN': (3, 150),
+    'Glucose': (30, 600),
+    'Lactate': (0.5, 20),
+    'Bilirubin_total': (0.1, 30),
+    'Bilirubin_direct': (0, 15),
+    
+    # Lab - ABG
+    'pH': (6.8, 7.8),
+    'PaCO2': (15, 100),
+    'PaO2': (40, 500),
+    'HCO3': (10, 45),
+    'BaseExcess': (-20, 20),
+    
+    # Lab - Electrolytes
+    'Calcium': (5, 15),
+    'Chloride': (70, 130),
+    'Potassium': (2, 8),
+    'Magnesium': (0.5, 5),
+    
+    # Lab - Liver
+    'AST': (5, 5000),
+    'ALT': (5, 5000),
+    'ALP': (20, 1000),
+    
+    # Biomarkers
+    'PCT': (0.01, 100),
+    'CRP': (0, 500),
+    'Presepsin': (100, 5000),
+    'IL6': (0, 1000),
+    'IL1b': (0, 200),
+    'ESR': (0, 150),
+    'MDW': (15, 40),
+    'MPV': (5, 15),
+    'RDW': (10, 25),
+    'Neutrophils': (0.5, 40),
+    'Lymphocytes': (0.2, 10),
+    'DDimer': (0, 20),
+    'PT': (8, 50),
+    'aPTT': (15, 100),
+    'INR': (0.5, 10),
+    'IonizedCalcium': (0.8, 1.5),
+    'Phosphorus': (1, 10),
+    'Albumin': (1.5, 6),
+    'Sodium': (110, 170),
+    'NLR': (0.1, 100),
+    'PLR': (10, 1000),
+    'AnionGap': (0, 40),
+    'Urine_output': (0, 500),
+}
+
+def validate_vital_signs(vital_signs):
+    """
+    Validate vital signs are within acceptable ranges
+    Returns: (is_valid, errors_list)
+    """
+    errors = []
+    
+    for field, value in vital_signs.items():
+        if field in VITAL_SIGN_RANGES:
+            try:
+                num_value = float(value)
+                min_val, max_val = VITAL_SIGN_RANGES[field]
+                
+                if not (min_val <= num_value <= max_val):
+                    errors.append(f"{field} must be between {min_val} and {max_val} (got {num_value})")
+            except (ValueError, TypeError):
+                errors.append(f"{field} must be a valid number")
+    
+    return (len(errors) == 0, errors)
+
+
+# ============================================================================
 # MODEL FONKSİYONLARI
 # ============================================================================
 
@@ -403,20 +497,6 @@ def get_patient(patient_id):
 def add_hourly_data(patient_id):
     """
     Hastaya saatlik veri ekle ve kademeli tahmin yap
-    
-    Request Body:
-        {
-            "hour": 1,
-            "vital_signs": {
-                "HR": 85,
-                "O2Sat": 98,
-                "Temp": 37.2,
-                "SBP": 120,
-                "MAP": 80,
-                "Resp": 18,
-                ...
-            }
-        }
     """
     try:
         data = request.get_json()
@@ -429,6 +509,15 @@ def add_hourly_data(patient_id):
         
         hour = data['hour']
         vital_signs = data['vital_signs']
+        
+        # VALIDATION - Validate vital signs
+        is_valid, errors = validate_vital_signs(vital_signs)
+        if not is_valid:
+            return jsonify({
+                'success': False,
+                'error': 'Validation failed',
+                'details': errors
+            }), 400
         
         conn = get_db()
         cursor = conn.cursor()

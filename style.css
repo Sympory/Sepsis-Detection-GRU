@@ -547,17 +547,231 @@ body {
         grid-template-columns: 1fr;
     }
 
-    .view-header {
-        flex-direction: column;
-        gap: 15px;
-        align-items: flex-start;
+    .view-header {}
+
+    .hourly-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--border);
     }
 
-    .form-row {
-        grid-template-columns: 1fr;
+    .hourly-header h4 {
+        font-size: 1.1rem;
+        margin: 0;
+        color: var(--dark);
+    }
+
+    .vital-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+        margin-bottom: 15px;
+    }
+
+    .vital-item {
+        background: var(--white);
+        padding: 10px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+    }
+
+    .vital-label {
+        font-weight: 600;
+        color: #6b7280;
+        font-size: 0.85rem;
+    }
+
+    .vital-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--dark);
+        margin-left: 8px;
+    }
+
+    .prediction-info {
+        background: #eff6ff;
+        padding: 12px;
+        border-radius: 6px;
+        border-left: 4px solid var(--primary);
+    }
+
+    /* ============================================================================
+   MODAL
+   ============================================================================ */
+
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .modal.active {
+        display: flex;
     }
 
     .modal-content {
-        width: 95%;
+        background: var(--white);
+        border-radius: 12px;
+        width: 90%;
+        max-width: 500px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        animation: modalSlideIn 0.3s ease;
     }
-}
+
+    @keyframes modalSlideIn {
+        from {
+            transform: translateY(-50px);
+            opacity: 0;
+        }
+
+        to {
+            transform: translateY(0);
+            opacity: 1;
+        }
+    }
+
+    .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 25px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.4rem;
+    }
+
+    .close-btn {
+        background: none;
+        border: none;
+        font-size: 2rem;
+        cursor: pointer;
+        color: #6b7280;
+        line-height: 1;
+    }
+
+    .close-btn:hover {
+        color: var(--dark);
+    }
+
+    .modal-content form {
+        padding: 25px;
+    }
+
+    .modal-footer {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 20px;
+    }
+
+    /* ============================================================================
+   TOAST BİLDİRİMİ
+   ============================================================================ */
+
+    .toast {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        background: var(--dark);
+        color: var(--white);
+        padding: 16px 24px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px var(--shadow);
+        transform: translateX(400px);
+        transition: transform 0.3s ease;
+        z-index: 2000;
+        font-weight: 500;
+    }
+
+    .toast.show {
+        transform: translateX(0);
+    }
+
+    .toast-success {
+        background: var(--success);
+    }
+
+    .toast-error {
+        background: var(--danger);
+    }
+
+    .toast-info {
+        background: var(--primary);
+    }
+
+    /* ============================================================================
+   YARDIMCI SINIFLAR
+   ============================================================================ */
+
+    .text-muted {
+        color: #6b7280;
+        font-style: italic;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #6b7280;
+        font-size: 1.1rem;
+    }
+
+    /* ============================================================================
+   RESPONSİVE
+   ============================================================================ */
+
+    @media (max-width: 768px) {
+        .header h1 {
+            font-size: 1.8rem;
+        }
+
+        .patients-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .view-header {
+            flex-direction: column;
+            gap: 15px;
+            align-items: flex-start;
+        }
+
+        .form-row {
+            grid-template-columns: 1fr;
+        }
+
+        .modal-content {
+            width: 95%;
+        }
+    }
+
+    /* ============================================================================
+   VALIDATION STYLES
+   ============================================================================ */
+
+    .input-error {
+        border-color: #ef4444 !important;
+        background-color: #fee2e2 !important;
+    }
+
+    .field-error {
+        color: #ef4444;
+        font-size: 0.875rem;
+        margin-top: 4px;
+        display: block;
+    }
+
+    .input-valid {
+        border-color: #10b981 !important;
+    }

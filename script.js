@@ -8,6 +8,172 @@ let riskChart = null;
 let currentUser = null;
 
 // ============================================================================
+// VALIDATION RANGES
+// ============================================================================
+
+const VALIDATION_RANGES = {
+    // Vital Signs (Core)
+    'HR': { min: 40, max: 200, unit: 'bpm', name: 'Heart Rate' },
+    'Temp': { min: 35, max: 42, unit: '°C', name: 'Temperature' },
+    'SBP': { min: 60, max: 250, unit: 'mmHg', name: 'Systolic BP' },
+    'DBP': { min: 30, max: 150, unit: 'mmHg', name: 'Diastolic BP' },
+    'MAP': { min: 40, max: 180, unit: 'mmHg', name: 'Mean Arterial Pressure' },
+    'Resp': { min: 8, max: 50, unit: '/min', name: 'Respiratory Rate' },
+    'O2Sat': { min: 70, max: 100, unit: '%', name: 'Oxygen Saturation' },
+    'EtCO2': { min: 10, max: 80, unit: 'mmHg', name: 'End-Tidal CO2' },
+
+    // Lab - Hematology
+    'WBC': { min: 1, max: 50, unit: 'K/µL', name: 'White Blood Cells' },
+    'Platelets': { min: 20, max: 800, unit: 'K/µL', name: 'Platelets' },
+    'Hgb': { min: 5, max: 20, unit: 'g/dL', name: 'Hemoglobin' },
+    'Hct': { min: 15, max: 65, unit: '%', name: 'Hematocrit' },
+
+    // Lab - Chemistry
+    'Creatinine': { min: 0.3, max: 15, unit: 'mg/dL', name: 'Creatinine' },
+    'BUN': { min: 3, max: 150, unit: 'mg/dL', name: 'Blood Urea Nitrogen' },
+    'Glucose': { min: 30, max: 600, unit: 'mg/dL', name: 'Glucose' },
+    'Lactate': { min: 0.5, max: 20, unit: 'mmol/L', name: 'Lactate' },
+    'Bilirubin_total': { min: 0.1, max: 30, unit: 'mg/dL', name: 'Total Bilirubin' },
+    'Bilirubin_direct': { min: 0, max: 15, unit: 'mg/dL', name: 'Direct Bilirubin' },
+
+    // Lab - ABG
+    'pH': { min: 6.8, max: 7.8, unit: '', name: 'pH' },
+    'PaCO2': { min: 15, max: 100, unit: 'mmHg', name: 'PaCO2' },
+    'PaO2': { min: 40, max: 500, unit: 'mmHg', name: 'PaO2' },
+    'HCO3': { min: 10, max: 45, unit: 'mmol/L', name: 'Bicarbonate' },
+    'BaseExcess': { min: -20, max: 20, unit: 'mmol/L', name: 'Base Excess' },
+
+    // Lab - Electrolytes
+    'Calcium': { min: 5, max: 15, unit: 'mg/dL', name: 'Calcium' },
+    'Chloride': { min: 70, max: 130, unit: 'mmol/L', name: 'Chloride' },
+    'Potassium': { min: 2, max: 8, unit: 'mmol/L', name: 'Potassium' },
+    'Magnesium': { min: 0.5, max: 5, unit: 'mg/dL', name: 'Magnesium' },
+
+    // Lab - Liver
+    'AST': { min: 5, max: 5000, unit: 'U/L', name: 'AST' },
+    'ALT': { min: 5, max: 5000, unit: 'U/L', name: 'ALT' },
+    'ALP': { min: 20, max: 1000, unit: 'U/L', name: 'Alkaline Phosphatase' },
+
+    // Lab - Urine
+    'Urine_output': { min: 0, max: 500, unit: 'mL/hr', name: 'Urine Output' },
+
+    // Biomarkers - Sepsis Markers
+    'PCT': { min: 0.01, max: 100, unit: 'ng/mL', name: 'Procalcitonin' },
+    'CRP': { min: 0, max: 500, unit: 'mg/L', name: 'C-Reactive Protein' },
+    'Presepsin': { min: 100, max: 5000, unit: 'pg/mL', name: 'Presepsin' },
+    'IL6': { min: 0, max: 1000, unit: 'pg/mL', name: 'Interleukin-6' },
+    'IL1b': { min: 0, max: 200, unit: 'pg/mL', name: 'Interleukin-1β' },
+
+    // Biomarkers - Hematology Extended
+    'ESR': { min: 0, max: 150, unit: 'mm/hr', name: 'ESR' },
+    'MDW': { min: 15, max: 40, unit: '', name: 'Monocyte Distribution Width' },
+    'MPV': { min: 5, max: 15, unit: 'fL', name: 'Mean Platelet Volume' },
+    'RDW': { min: 10, max: 25, unit: '%', name: 'Red Cell Distribution Width' },
+    'Neutrophils': { min: 0.5, max: 40, unit: 'K/µL', name: 'Neutrophils' },
+    'Lymphocytes': { min: 0.2, max: 10, unit: 'K/µL', name: 'Lymphocytes' },
+
+    // Biomarkers - Coagulation
+    'DDimer': { min: 0, max: 20, unit: 'μg/mL', name: 'D-Dimer' },
+    'PT': { min: 8, max: 50, unit: 'seconds', name: 'Prothrombin Time' },
+    'aPTT': { min: 15, max: 100, unit: 'seconds', name: 'aPTT' },
+    'INR': { min: 0.5, max: 10, unit: '', name: 'INR' },
+
+    // Biomarkers - Chemistry Extended
+    'IonizedCalcium': { min: 0.8, max: 1.5, unit: 'mmol/L', name: 'Ionized Calcium' },
+    'Phosphorus': { min: 1, max: 10, unit: 'mg/dL', name: 'Phosphorus' },
+    'Albumin': { min: 1.5, max: 6, unit: 'g/dL', name: 'Albumin' },
+    'Sodium': { min: 110, max: 170, unit: 'mmol/L', name: 'Sodium' },
+
+    // Calculated Ratios
+    'NLR': { min: 0.1, max: 100, unit: '', name: 'Neutrophil-Lymphocyte Ratio' },
+    'PLR': { min: 10, max: 1000, unit: '', name: 'Platelet-Lymphocyte Ratio' },
+    'AnionGap': { min: 0, max: 40, unit: 'mmol/L', name: 'Anion Gap' }
+};
+
+function validateInput(fieldName, value) {
+    if (!VALIDATION_RANGES[fieldName]) {
+        return { valid: true }; // No validation rule defined
+    }
+
+    const range = VALIDATION_RANGES[fieldName];
+    const numValue = parseFloat(value);
+
+    if (isNaN(numValue)) {
+        return {
+            valid: false,
+            message: `${range.name} must be a number`
+        };
+    }
+
+    if (numValue < range.min || numValue > range.max) {
+        return {
+            valid: false,
+            message: `${range.name} must be between ${range.min} and ${range.max}${range.unit ? ' ' + range.unit : ''}`
+        };
+    }
+
+    return { valid: true };
+}
+
+function showFieldError(inputElement, message) {
+    // Remove existing error
+    clearFieldError(inputElement);
+
+    // Create error message
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'field-error';
+    errorDiv.textContent = message;
+    errorDiv.id = `error-${inputElement.name}`;
+
+    // Insert after input
+    inputElement.parentNode.insertBefore(errorDiv, inputElement.nextSibling);
+}
+
+function clearFieldError(inputElement) {
+    const errorDiv = document.getElementById(`error-${inputElement.name}`);
+    if (errorDiv) {
+        errorDiv.remove();
+    }
+}
+
+function setupRealTimeValidation() {
+    // Attach validation to all number inputs
+    document.querySelectorAll('input[type="number"]').forEach(input => {
+        input.addEventListener('blur', function (e) {
+            const fieldName = e.target.name;
+            const value = e.target.value;
+
+            // Skip if empty (optional fields)
+            if (value === '' || value === null) {
+                clearFieldError(e.target);
+                e.target.classList.remove('input-error', 'input-valid');
+                return;
+            }
+
+            // Validate
+            const result = validateInput(fieldName, value);
+
+            if (!result.valid) {
+                // Show error
+                e.target.classList.add('input-error');
+                e.target.classList.remove('input-valid');
+                showFieldError(e.target, result.message);
+            } else {
+                // Show success
+                e.target.classList.add('input-valid');
+                e.target.classList.remove('input-error');
+                clearFieldError(e.target);
+            }
+        });
+
+        // Clear error on focus
+        input.addEventListener('focus', function (e) {
+            clearFieldError(e.target);
+        });
+    });
+}
+
+// ============================================================================
 // SAYFA YÜKLENDİĞİNDE
 // ============================================================================
 
@@ -21,6 +187,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     // Ana içeriği yükle
     loadPatients();
     updateNextHour();
+
+    // Real-time validation setup
+    setupRealTimeValidation();
 });
 
 // ============================================================================
