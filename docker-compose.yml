@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Production)
+  db:
+    image: postgres:15-alpine
+    container_name: sepsis_db
+    environment:
+      POSTGRES_USER: sepsis_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-change_this_password}
+      POSTGRES_DB: sepsis_production
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/schema_extension_phase2.sql:/docker-entrypoint-initdb.d/02-phase2.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sepsis_user"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Flask Application
+  app:
+    build: .
+    container_name: sepsis_app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://sepsis_user:${DB_PASSWORD:-change_this_password}@db:5432/sepsis_production
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY:-generate_strong_secret_key_here}
+    volumes:
+      - ./models:/app/models:ro
+      - ./data/processed:/app/data/processed:ro
+      - app_logs:/app/logs
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy (Optional, for HTTPS)
+  nginx:
+    image: nginx:alpine
+    container_name: sepsis_nginx
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deployment/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deployment/ssl:/etc/nginx/ssl:ro
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  app_logs:

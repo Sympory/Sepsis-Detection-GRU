@@ -171,9 +171,11 @@ data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+data/processed_56/*
 models/*.keras
 models/*.h5
 models/*.weights.h5
+models/gru_v24_56features/*
 !models/.gitkeep
 *.pkl
 !data/processed/*.pkl
