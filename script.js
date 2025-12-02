@@ -123,14 +123,14 @@ function showFieldError(inputElement, message) {
     const errorDiv = document.createElement('div');
     errorDiv.className = 'field-error';
     errorDiv.textContent = message;
-    errorDiv.id = `error-${inputElement.name}`;
+    errorDiv.id = `error-${inputElement.id}`;
 
     // Insert after input
     inputElement.parentNode.insertBefore(errorDiv, inputElement.nextSibling);
 }
 
 function clearFieldError(inputElement) {
-    const errorDiv = document.getElementById(`error-${inputElement.name}`);
+    const errorDiv = document.getElementById(`error-${inputElement.id}`);
     if (errorDiv) {
         errorDiv.remove();
     }
@@ -140,7 +140,7 @@ function setupRealTimeValidation() {
     // Attach validation to all number inputs
     document.querySelectorAll('input[type="number"]').forEach(input => {
         input.addEventListener('blur', function (e) {
-            const fieldName = e.target.name;
+            const fieldName = e.target.id;
             const value = e.target.value;
 
             // Skip if empty (optional fields)
