@@ -1,3 +1,4 @@
+
 // ============================================================================
 // GLOBAL DEĞİŞKENLER
 // ============================================================================
@@ -13,8 +14,8 @@ let currentUser = null;
 
 const VALIDATION_RANGES = {
     // Vital Signs (Core)
-    'HR': { min: 40, max: 200, unit: 'bpm', name: 'Heart Rate' },
-    'Temp': { min: 35, max: 42, unit: '°C', name: 'Temperature' },
+    'HR': { min: 20, max: 260, unit: 'bpm', name: 'Heart Rate' },
+    'Temp': { min: 25, max: 42, unit: '°C', name: 'Temperature' },
     'SBP': { min: 60, max: 250, unit: 'mmHg', name: 'Systolic BP' },
     'DBP': { min: 30, max: 150, unit: 'mmHg', name: 'Diastolic BP' },
     'MAP': { min: 40, max: 180, unit: 'mmHg', name: 'Mean Arterial Pressure' },
@@ -491,10 +492,12 @@ function displayHourlyHistory(hourlyData) {
                 </div>
                 <div class="hourly-body">
                     <div class="vital-grid">
-                        ${Object.entries(vs).map(([key, value]) => `
+                        ${Object.entries(vs)
+                .filter(([key, value]) => value !== null && value !== '')
+                .map(([key, value]) => `
                             <div class="vital-item">
                                 <span class="vital-label">${key}:</span>
-                                <span class="vital-value">${value !== null ? value : 'N/A'}</span>
+                                <span class="vital-value">${value}</span>
                             </div>
                         `).join('')}
                     </div>

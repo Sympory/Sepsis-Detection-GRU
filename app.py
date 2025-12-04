@@ -155,6 +155,16 @@ VITAL_SIGN_RANGES = {
     'Urine_output': (0, 500),
 }
 
+@app.route('/')
+def index():
+    """Ana sayfa"""
+    return send_from_directory('.', 'index.html')
+
+@app.route('/login')
+def login_page():
+    """Giriş sayfası"""
+    return send_from_directory('.', 'login.html')
+
 def validate_vital_signs(vital_signs):
     """
     Validate vital signs are within acceptable ranges
@@ -163,6 +173,10 @@ def validate_vital_signs(vital_signs):
     errors = []
     
     for field, value in vital_signs.items():
+        # Skip empty values (let imputer handle them)
+        if value is None or value == '':
+            continue
+            
         if field in VITAL_SIGN_RANGES:
             try:
                 num_value = float(value)
@@ -315,10 +329,7 @@ def get_risk_level(prediction):
 # WEB ENDPOINTS
 # ============================================================================
 
-@app.route('/')
-def index():
-    """Ana sayfa"""
-    return send_from_directory('.', 'index.html')
+
 
 
 @app.route('/<path:path>')
