@@ -1,0 +1,100 @@
+╔══════════════════════════════════════════════════════════════╗
+║     SEPSİS ERKEN TAHMİN SİSTEMİ — PROJE RAPORU            ║
+║     MATLAB Deep Learning Toolbox ile Geliştirilmiştir       ║
+╚══════════════════════════════════════════════════════════════╝
+
+Tarih: 01.06.2026 22:40
+
+────────────────────────────────────────────────────────────
+1. PROJE TANIMI
+────────────────────────────────────────────────────────────
+Amaç: Yoğun bakım ünitesinde (YBÜ) yatan hastaların vital
+bulgularını analiz ederek Sepsis'i erken aşamada tahmin etmek.
+
+Veri Seti: PhysioNet/CinC Challenge 2019 (Sepsis Prediction)
+  - 40.000+ hasta, 40 klinik özellik, saatlik ölçümler
+  - Dengesiz veri: ~%2 pozitif (Sepsis) / %98 negatif
+
+────────────────────────────────────────────────────────────
+2. MODEL MİMARİSİ (Enhanced v2)
+────────────────────────────────────────────────────────────
+  ┌─────────────────────────────────────────────┐
+  │  Girdi: [52 özellik × 6 saatlik pencere]     │
+  │         (40 orijinal + 12 mühendislik)        │
+  ├─────────────────────────────────────────────┤
+  │  Bi-LSTM Katman 1 (96 ünite, çift yönlü)     │
+  │  → Layer Normalization → Dropout(0.3)         │
+  ├─────────────────────────────────────────────┤
+  │  Bi-LSTM Katman 2 (64 ünite, çift yönlü)     │
+  │  → Layer Normalization → Dropout(0.3)         │
+  ├─────────────────────────────────────────────┤
+  │  Multi-Head Temporal Attention                │
+  │  (128 ünite, 4 dikkat başı)                   │
+  ├─────────────────────────────────────────────┤
+  │  Dense(64, GELU) → BN → Dropout(0.3)         │
+  │  Dense(32, GELU) → BN → Dropout(0.2)         │
+  │  Dense(1, Sigmoid) → Çıktı                   │
+  └─────────────────────────────────────────────┘
+
+────────────────────────────────────────────────────────────
+3. FEATURE ENGINEERING (12 Yeni Özellik)
+────────────────────────────────────────────────────────────
+  Delta Özellikleri (Değişim Hızı):
+    dHR, dTemp, dMAP, dLactate, dResp, dO2Sat
+  Etkileşim Özellikleri:
+    ShockIndex (HR/SBP), MAP/HR, O2 Delivery, Resp/HR
+  Değişkenlik Özellikleri:
+    HR Variability, Temperature Variability
+
+────────────────────────────────────────────────────────────
+4. EĞİTİM DETAYLARI
+────────────────────────────────────────────────────────────
+  Kayıp Fonksiyonu:  Focal Loss (γ=2.0, α=0.25)
+  Optimizer:         Adam
+  Öğrenme Oranı:     0.001 (ReduceLROnPlateau ile)
+  Early Stopping:    patience=10 (PR-AUC izleme)
+
+────────────────────────────────────────────────────────────
+5. TEST SETİ SONUÇLARI
+────────────────────────────────────────────────────────────
+
+  Metrik               │ Değer     
+  ───────────────────────────────────
+  ROC-AUC              │ 0.8055
+  PR-AUC               │ 0.0889
+  F1-Score             │ 0.1687
+  Accuracy             │ 0.9420
+  Sensitivity          │ 0.3380
+  Specificity          │ 0.9527
+  Precision            │ 0.1124
+
+  Confusion Matrix:
+  ┌──────────┬──────────┐
+  │ TN: 253355│ FP: 12586│
+  ├──────────┼──────────┤
+  │ FN: 3122 │ TP: 1594 │
+  └──────────┴──────────┘
+
+────────────────────────────────────────────────────────────
+6. KULLANILAN YÖNTEMLER
+────────────────────────────────────────────────────────────
+  • Bidirectional LSTM (Bi-LSTM): İleri ve geri yönde
+    temporal bağımlılıkları yakalamak için
+  • Multi-Head Attention: Hangi zaman adımlarının
+    Sepsis için kritik olduğunu öğrenmek için
+  • Focal Loss: Dengesiz sınıf dağılımını kompanse
+    etmek ve zor örneklere odaklanmak için
+  • Feature Engineering: Delta, etkileşim ve
+    değişkenlik özellikleri ile tahmin gücünü artırmak
+
+────────────────────────────────────────────────────────────
+7. KULLANILAN ARAÇLAR
+────────────────────────────────────────────────────────────
+  • MATLAB R2025b — Deep Learning Toolbox
+  • dlnetwork — Custom training loop
+  • Adam Optimizer ile otomatik diferansiyasyon
+  • perfcurve — ROC ve PR eğrisi analizi
+
+════════════════════════════════════════════════════════════
+RAPOR SONU
+════════════════════════════════════════════════════════════

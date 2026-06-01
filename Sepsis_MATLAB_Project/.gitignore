@@ -1,0 +1,24 @@
+# MATLAB files to ignore
+*.mat
+*.asv
+*.mex*
+*.slxc
+*.app
+*.prj
+*.fig
+
+# Ignore dataset directory and zip backups
+data/
+backups/
+*.zip
+
+# Ignore specific results but keep figures and reports
+results/checkpoints/
+results/pipeline_state.mat
+results/best_model.mat
+results/test_results.mat
+results/training_history.mat
+
+# Keep generated figures and text reports
+!results/figures/*.png
+!results/proje_raporu.txt
