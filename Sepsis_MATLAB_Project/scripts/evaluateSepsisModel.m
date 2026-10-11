@@ -142,7 +142,8 @@ function results = evaluateSepsisModel(net, data, outputDir)
     fprintf('\n[5/5] Sonuçlar özetleniyor...\n');
     
     fprintf('\n  %-20s │ %-10s\n', 'Metrik', 'Değer');
-    fprintf('  %s\n', repmat('─', 1, 35));
+    fprintf('  %s\n', repmat('─', 1, 35));,
+    
     fprintf('  %-20s │ %.4f\n', 'ROC-AUC', rocAUC);
     fprintf('  %-20s │ %.4f\n', 'PR-AUC', prAUC);
     fprintf('  %-20s │ %.4f\n', 'F1-Score', f1Score);

@@ -89,7 +89,7 @@ function [trainedNet, history] = trainSepsisModel(net, data, options, resumeStat
     
     if ~isempty(resumeState)
         % --- CHECKPOINT'TEN DEVAM ---
-        fprintf('\n  ★ CHECKPOINT''TEN DEVAM EDİLİYOR (Epoch %d)\n', resumeState.epoch);
+        fprintf('\n   CHECKPOINT''TEN DEVAM EDİLİYOR (Epoch %d)\n', resumeState.epoch);
         
         avgGrad         = resumeState.avgGrad;
         avgSqGrad       = resumeState.avgSqGrad;

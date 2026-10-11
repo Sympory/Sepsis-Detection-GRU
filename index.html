@@ -1,493 +1,296 @@
 <!DOCTYPE html>
 <html lang="tr">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GRU Sepsis Erken Tespit Sistemi</title>
+    <meta name="description" content="GRU Deep Learning ile Sepsis Erken Tespit Sistemi — Yoğun Bakım Karar Destek Platformu">
+    <title>SepsisAI — YBÜ Karar Destek</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230f766e'/><path d='M6 17h5l2-5 4 10 2-5h7' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+    <script>
+        // Tema tercihini ilk boyamadan önce uygula (yanıp sönmeyi önler)
+        try { const t = localStorage.getItem('sepsis-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) { }
+    </script>
 </head>
-
 <body>
-    <!-- Header -->
-    <header class="header">
-        <div class="container">
-            <div class="header-content">
-                <h1>🏥 Sepsis Erken Tespit Sistemi</h1>
-                <p>GRU Deep Learning ile Gerçek Zamanlı Hasta İzleme - 34 Klinik Parametre</p>
+<div class="app">
+    <!-- ===== SIDEBAR ===== -->
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">
+            <div class="brand-mark">
+                <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 17h5l2.5-6 4.5 12 2.5-6H27" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <div>
+                <div class="brand-name">SepsisAI</div>
+                <div class="brand-sub">YBÜ Karar Destek</div>
             </div>
         </div>
-    </header>
 
-    <!-- Ana Container -->
-    <div class="container main-container">
+        <nav class="nav">
+            <button class="nav-item active" data-view="dashboard" onclick="switchView('dashboard')">
+                <svg viewBox="0 0 24 24"><path d="M4 13h6V4H4zm0 7h6v-5H4zm10 0h6v-9h-6zm0-16v5h6V4z"/></svg>
+                Genel Bakış
+            </button>
+            <button class="nav-item" data-view="patients" onclick="switchView('patients')">
+                <svg viewBox="0 0 24 24"><path d="M16 11a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm0 2c-2.7 0-6 1.3-6 3.5V19h7v-2.5c0-1 .4-2 1.2-2.8A9 9 0 0 0 8 13zm8 0c-3 0-7 1.5-7 4v2h14v-2c0-2.5-4-4-7-4z"/></svg>
+                Hastalar
+            </button>
+            <button class="nav-item" data-view="patient-detail" onclick="switchView('patient-detail')" id="nav-patient-detail" hidden>
+                <svg viewBox="0 0 24 24"><path d="M19 3h-4.2A3 3 0 0 0 9.2 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-7 0a1 1 0 1 1-1 1 1 1 0 0 1 1-1zm1 14h-2v-3H8v-2h3V9h2v3h3v2h-3z"/></svg>
+                <span id="nav-patient-name">Hasta Detay</span>
+            </button>
+            <button class="nav-item" data-view="alerts" onclick="switchView('alerts')">
+                <svg viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6V11c0-3-1.6-5.6-4.5-6.3V4a1.5 1.5 0 0 0-3 0v.7C7.6 5.4 6 8 6 11v5l-2 2v1h16v-1z"/></svg>
+                Alarmlar
+                <span class="nav-badge" id="alert-count" hidden>0</span>
+            </button>
+            <button class="nav-item" data-view="model-info" onclick="switchView('model-info')">
+                <svg viewBox="0 0 24 24"><path d="M21 10h-2V7a2 2 0 0 0-2-2h-3V3h-4v2H7a2 2 0 0 0-2 2v3H3v4h2v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3h2zM9 13a1.5 1.5 0 1 1 1.5-1.5A1.5 1.5 0 0 1 9 13zm6 0a1.5 1.5 0 1 1 1.5-1.5A1.5 1.5 0 0 1 15 13z"/></svg>
+                Model &amp; Güvenilirlik
+            </button>
+        </nav>
 
-        <!-- Hasta Listesi Görünümü -->
-        <div id="patient-list-view" class="view active">
-            <div class="view-header">
-                <h2>👥 Hasta Listesi</h2>
+        <div class="sidebar-foot">
+            <div class="status" id="model-status"><span class="status-dot"></span><span id="model-status-text">Bağlanıyor…</span></div>
+            <button class="theme-toggle" onclick="toggleTheme()" aria-label="Tema değiştir">
+                <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg>
+                <span>Tema</span>
+            </button>
+        </div>
+    </aside>
+
+    <!-- ===== MAIN ===== -->
+    <main class="main">
+        <header class="topbar">
+            <button class="menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')" aria-label="Menü">
+                <svg viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+            </button>
+            <div class="topbar-title">
+                <h1 id="page-title">Genel Bakış</h1>
+                <p id="page-subtitle">Ünitedeki hastaların güncel sepsis riski</p>
+            </div>
+            <div class="topbar-actions">
+                <span class="clock" id="clock">--:--</span>
                 <button class="btn btn-primary" onclick="showAddPatientModal()">
-                    ➕ Yeni Hasta Ekle
+                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/></svg>
+                    Yeni Hasta
                 </button>
             </div>
+        </header>
 
-            <div id="patients-container" class="patients-grid">
-                <!-- Hastalar buraya yüklenecek -->
-                <div class="loading">Hastalar yükleniyor...</div>
-            </div>
+        <div class="banner banner-danger" id="critical-alert" hidden>
+            <strong>Dikkat:</strong> <span id="critical-alert-text"></span>
+            <button class="link" onclick="switchView('alerts')">Alarmları gör →</button>
         </div>
 
-        <!-- Hasta Detay Görünümü -->
-        <div id="patient-detail-view" class="view">
-            <div class="view-header">
-                <button class="btn btn-secondary" onclick="showPatientList()">
-                    ⬅️ Hasta Listesine Dön
-                </button>
-                <div class="patient-info">
-                    <h2 id="patient-name">--</h2>
-                    <p id="patient-meta">--</p>
+        <!-- ===== DASHBOARD ===== -->
+        <section class="view active" id="view-dashboard">
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-label">Takipteki hasta</div>
+                    <div class="stat-value" id="stat-total">—</div>
                 </div>
-                <button class="btn btn-danger" onclick="deleteCurrentPatient()">
-                    🗑️ Hastayı Sil
-                </button>
+                <div class="stat stat-danger">
+                    <div class="stat-label">Yüksek / çok yüksek risk</div>
+                    <div class="stat-value" id="stat-high-risk">—</div>
+                </div>
+                <div class="stat stat-warn">
+                    <div class="stat-label">Orta risk</div>
+                    <div class="stat-value" id="stat-moderate">—</div>
+                </div>
+                <div class="stat stat-muted">
+                    <div class="stat-label">Değerlendirilemeyen</div>
+                    <div class="stat-value" id="stat-unassessed">—</div>
+                    <div class="stat-sub">Veri yok veya yetersiz</div>
+                </div>
             </div>
 
-            <!-- Risk Trend Grafiği -->
             <div class="card">
-                <h3>📊 Risk Skoru Trendi</h3>
-                <canvas id="risk-chart"></canvas>
+                <div class="card-head">
+                    <h2>Hastalar — en yüksek riskten başlayarak</h2>
+                    <button class="btn btn-ghost" onclick="switchView('patients')">Tümü →</button>
+                </div>
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                            <tr><th>Hasta</th><th>Son risk</th><th>Skor</th><th>Güvenilirlik</th><th>Son ölçüm</th></tr>
+                        </thead>
+                        <tbody id="dashboard-patients-body">
+                            <tr><td colspan="5"><div class="spinner"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
+        </section>
 
-            <!-- Saatlik Veri Ekleme Formu -->
+        <!-- ===== PATIENTS ===== -->
+        <section class="view" id="view-patients">
             <div class="card">
-                <h3>⏱️ Saatlik Veri Girişi (34 Klinik Parametre)</h3>
-                <form id="hourly-data-form" onsubmit="addHourlyData(event)">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Saat *</label>
-                            <input type="number" id="hour-input" min="1" required>
-                            <small>ICU kalış saati (1'den başlar)</small>
-                        </div>
-                    </div>
+                <div class="card-head">
+                    <h2>Tüm hastalar</h2>
+                    <input type="search" class="search" id="patient-search" placeholder="Ad veya ID ara…" oninput="renderAllPatients()">
+                </div>
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                            <tr><th>Hasta</th><th>ID</th><th>Yaş</th><th>Cinsiyet</th><th>Son risk</th><th>Güvenilirlik</th><th>Kayıt</th><th></th></tr>
+                        </thead>
+                        <tbody id="all-patients-body">
+                            <tr><td colspan="8"><div class="spinner"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
 
-                    <!-- Vital Signs -->
-                    <h4>💓 Vital Signs (Hayati Bulgular)</h4>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>HR</label>
-                            <input type="number" id="HR" step="0.1" placeholder="80-100">
-                            <small>Kalp atış hızı (bpm)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>O2Sat</label>
-                            <input type="number" id="O2Sat" step="0.1" placeholder="95-100">
-                            <small>Oksijen saturasyonu (%)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Temp</label>
-                            <input type="number" id="Temp" step="0.1" placeholder="36-37">
-                            <small>Vücut sıcaklığı (°C)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Resp</label>
-                            <input type="number" id="Resp" step="0.1" placeholder="12-20">
-                            <small>Solunum hızı (/dk)</small>
-                        </div>
-                    </div>
-
-                    <!-- Blood Pressure -->
-                    <h4>🩸 Kan Basıncı</h4>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>SBP</label>
-                            <input type="number" id="SBP" step="0.1" placeholder="120">
-                            <small>Sistolik KB (mmHg)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>DBP</label>
-                            <input type="number" id="DBP" step="0.1" placeholder="80">
-                            <small>Diyastolik KB (mmHg)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>MAP</label>
-                            <input type="number" id="MAP" step="0.1" placeholder="70-100">
-                            <small>Ortalama arteriyel basınç (mmHg)</small>
-                        </div>
-                    </div>
-
-                    <!-- Respiratory -->
-                    <h4>🫁 Solunum Parametreleri</h4>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>EtCO2</label>
-                            <input type="number" id="EtCO2" step="0.1" placeholder="35-45">
-                            <small>End-tidal CO2 (mmHg)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>FiO2</label>
-                            <input type="number" id="FiO2" step="0.1" placeholder="21-100">
-                            <small>Oksijen fraksiyonu (%)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>PaCO2</label>
-                            <input type="number" id="PaCO2" step="0.1" placeholder="35-45">
-                            <small>Arteriyel CO2 (mmHg)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>SaO2</label>
-                            <input type="number" id="SaO2" step="0.1" placeholder="95-100">
-                            <small>Arteriyel O2 saturasyonu (%)</small>
-                        </div>
-                    </div>
-
-                    <!-- Acid-Base Balance -->
-                    <h4>⚖️ Asit-Baz Dengesi</h4>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>pH</label>
-                            <input type="number" id="pH" step="0.01" placeholder="7.35-7.45">
-                            <small>Arteriyel pH</small>
-                        </div>
-                        <div class="form-group">
-                            <label>BaseExcess</label>
-                            <input type="number" id="BaseExcess" step="0.1" placeholder="-2 to +2">
-                            <small>Baz fazlalığı (mmol/L)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>HCO3</label>
-                            <input type="number" id="HCO3" step="0.1" placeholder="22-26">
-                            <small>Bikarbonat (mmol/L)</small>
-                        </div>
-                    </div>
-
-                    <!-- Laboratory - Liver & Kidney -->
-                    <h4>🧪 Karaciğer & Böbrek Fonksiyonları</h4>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>BUN</label>
-                            <input type="number" id="BUN" step="0.1" placeholder="7-20">
-                            <small>Kan üre azotu (mg/dL)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Creatinine</label>
-                            <input type="number" id="Creatinine" step="0.1" placeholder="0.6-1.2">
-                            <small>Kreatinin (mg/dL)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>AST</label>
-                            <input type="number" id="AST" step="0.1" placeholder="10-40">
-                            <small>Aspartat aminotransferaz (U/L)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Alkalinephos</label>
-                            <input type="number" id="Alkalinephos" step="0.1" placeholder="40-130">
-                            <small>Alkalen fosfataz (U/L)</small>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Bilirubin_total</label>
-                            <input type="number" id="Bilirubin_total" step="0.1" placeholder="0.1-1.2">
-                            <small>Total bilirubin (mg/dL)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Bilirubin_direct</label>
-                            <input type="number" id="Bilirubin_direct" step="0.1" placeholder="0-0.3">
-                            <small>Direkt bilirubin (mg/dL)</small>
-                        </div>
-                    </div>
-
-                    <!-- Electrolytes & Metabolites -->
-                    <h4>⚡ Elektrolitler & Metabolitler</h4>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Calcium</label>
-                            <input type="number" id="Calcium" step="0.1" placeholder="8.5-10.5">
-                            <small>Kalsiyum (mg/dL)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Chloride</label>
-                            <input type="number" id="Chloride" step="0.1" placeholder="96-106">
-                            <small>Klorür (mmol/L)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Potassium</label>
-                            <input type="number" id="Potassium" step="0.1" placeholder="3.5-5">
-                            <small>Potasyum (mmol/L)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Magnesium</label>
-                            <input type="number" id="Magnesium" step="0.1" placeholder="1.5-2.5">
-                            <small>Magnezyum (mg/dL)</small>
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Phosphate</label>
-                            <input type="number" id="Phosphate" step="0.1" placeholder="2.5-4.5">
-                            <small>Fosfat (mg/dL)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Glucose</label>
-                            <input type="number" id="Glucose" step="0.1" placeholder="70-110">
-                            <small>Kan şekeri (mg/dL)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Lactate</label>
-                            <input type="number" id="Lactate" step="0.1" placeholder="0.5-2">
-                            <small>Laktat (mmol/L)</small>
-                        </div>
-                    </div>
-
-                    <!-- Hematology -->
-                    <h4>🩸 Hematoloji</h4>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>WBC</label>
-                            <input type="number" id="WBC" step="0.1" placeholder="4-11">
-                            <small>Beyaz küre (K/µL)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Hct</label>
-                            <input type="number" id="Hct" step="0.1" placeholder="37-52">
-                            <small>Hematokrit (%)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Hgb</label>
-                            <input type="number" id="Hgb" step="0.1" placeholder="12-17">
-                            <small>Hemoglobin (g/dL)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Platelets</label>
-                            <input type="number" id="Platelets" step="1" placeholder="150-400">
-                            <small>Trombosit (K/µL)</small>
-                        </div>
-                    </div>
-
-                    <!-- Coagulation & Cardiac Markers -->
-                    <h4>🫀 Pıhtılaşma & Kardiyak Markerlar</h4>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>PTT</label>
-                            <input type="number" id="PTT" step="0.1" placeholder="25-35">
-                            <small>Parsiyel tromboplastin zamanı (sn)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Fibrinogen</label>
-                            <input type="number" id="Fibrinogen" step="1" placeholder="200-400">
-                            <small>Fibrinojen (mg/dL)</small>
-                        </div>
-                        <div class="form-group">
-                            <label>TroponinI</label>
-                            <input type="number" id="TroponinI" step="0.01" placeholder="<0.04">
-                            <small>Troponin I (ng/mL)</small>
-                        </div>
-                    </div>
-
-                    <!-- NEW: Sepsis-Specific Biomarkers -->
-<h4 class="section-toggle" onclick="toggleSection('sepsis-markers')">
-    🔬 Sepsis Biomarker'ları (Yeni) <span class="toggle-icon">▼</span>
-</h4>
-<div id="sepsis-markers" class="collapsible-section">
-    <div class="form-row">
-        <div class="form-group">
-            <label>Procalcitonin (PCT)</label>
-            <input type="number" id="PCT" step="0.01" placeholder="< 0.5">
-            <small>ng/mL | Normal: <0.5 | Sepsis:>2.0</small>
-        </div>
-        <div class="form-group">
-            <label>C-Reactive Protein (CRP)</label>
-            <input type="number" id="CRP" step="0.1" placeholder="< 10">
-            <small>mg/L | Normal: <10 | Sepsis:>50</small>
-        </div>
-        <div class="form-group">
-            <label>Presepsin</label>
-            <input type="number" id="Presepsin" step="1" placeholder="< 600">
-            <small>pg/mL | Normal: <600 | Sepsis:>800</small>
-        </div>
-    </div>
-    <div class="form-row">
-        <div class="form-group">
-            <label>Interleukin-6 (IL-6)</label>
-            <input type="number" id="IL6" step="0.1" placeholder="< 7">
-            <small>pg/mL | Cytokine storm marker</small>
-        </div>
-        <div class="form-group">
-            <label>Interleukin-1β (IL-1β)</label>
-            <input type="number" id="IL1b" step="0.1" placeholder="< 5">
-            <small>pg/mL | İnflamasyon marker</small>
-        </div>
-    </div>
-</div>
-
-<!-- NEW: Hematology Extended -->
-<h4 class="section-toggle" onclick="toggleSection('hematology-ext')">
-    🩸 Hematoloji Genişletilmiş (Yeni) <span class="toggle-icon">▼</span>
-</h4>
-<div id="hematology-ext" class="collapsible-section">
-    <div class="form-row">
-        <div class="form-group">
-            <label>ESR (Sedimentasyon)</label>
-            <input type="number" id="ESR" step="1" placeholder="< 20">
-            <small>mm/hr | Sepsis: >30</small>
-        </div>
-        <div class="form-group">
-            <label>MDW</label>
-            <input type="number" id="MDW" step="0.1" placeholder="19-21">
-            <small>Unit | Sepsis: >23</small>
-        </div>
-        <div class="form-group">
-            <label>MPV</label>
-            <input type="number" id="MPV" step="0.1" placeholder="7.5-11.5">
-            <small>fL | Mean platelet volume</small>
-        </div>
-    </div>
-    <div class="form-row">
-        <div class="form-group">
-            <label>RDW</label>
-            <input type="number" id="RDW" step="0.1" placeholder="11.5-14.5">
-            <small>% | Red cell distribution</small>
-        </div>
-        <div class="form-group">
-            <label>Neutrophils</label>
-            <input type="number" id="Neutrophils" step="0.1" placeholder="2-7">
-            <small>K/µL | For NLR calculation</small>
-        </div>
-        <div class="form-group">
-            <label>Lymphocytes</label>
-            <input type="number" id="Lymphocytes" step="0.1" placeholder="1-3">
-            <small>K/µL | For NLR calculation</small>
-        </div>
-    </div>
-    <p class="info-text"><strong>Auto-calculated:</strong> NLR = Neutrophils / Lymphocytes, PLR = Platelets /
-        Lymphocytes</p>
-</div>
-
-<!-- NEW: Coagulation Panel Extended -->
-<h4 class="section-toggle" onclick="toggleSection('coag-ext')">
-    🩹 Pıhtılaşma Paneli Genişletilmiş (Yeni) <span class="toggle-icon">▼</span>
-</h4>
-<div id="coag-ext" class="collapsible-section">
-    <div class="form-row">
-        <div class="form-group">
-            <label>D-Dimer</label>
-            <input type="number" id="DDimer" step="0.1" placeholder="< 0.5">
-            <small>μg/mL | D IC: >1.5</small>
-        </div>
-        <div class="form-group">
-            <label>PT</label>
-            <input type="number" id="PT" step="0.1" placeholder="11-13.5">
-            <small>seconds | Prothrombin time</small>
-        </div>
-        <div class="form-group">
-            <label>aPTT</label>
-            <input type="number" id="aPTT" step="0.1" placeholder="25-35">
-            <small>seconds | Activated PTT</small>
-        </div>
-    </div>
-    <div class="form-row">
-        <div class="form-group">
-            <label>INR</label>
-            <input type="number" id="INR" step="0.01" placeholder="0.8-1.2">
-            <small>ratio</small>
-        </div>
-    </div>
-</div>
-
-<!-- NEW: Chemistry Extended -->
-<h4 class="section-toggle" onclick="toggleSection('chem-ext')">
-    ⚗️ Kimya Paneli Genişletilmiş (Yeni) <span class="toggle-icon">▼</span>
-</h4>
-<div id="chem-ext" class="collapsible-section">
-    <div class="form-row">
-        <div class="form-group">
-            <label>Ionized Calcium (Ca++)</label>
-            <input type="number" id="IonizedCalcium" step="0.01" placeholder="1.16-1.32">
-            <small>mmol/L | Sepsis: low</small>
-        </div>
-        <div class="form-group">
-            <label>Phosphorus</label>
-            <input type="number" id="Phosphorus" step="0.1" placeholder="2.5-4.5">
-            <small>mg/dL</small>
-        </div>
-        <div class="form-group">
-            <label>Albumin</label>
-            <input type="number" id="Albumin" step="0.1" placeholder="3.5-5.5">
-            <small>g/dL | Sepsis: low</small>
-        </div>
-    </div>
-    <div class="form-row">
-        <div class="form-group">
-            <label>Sodium (Na)</label>
-            <input type="number" id="Sodium" step="0.1" placeholder="135-145">
-            <small>mmol/L | For Anion Gap</small>
-        </div>
-    </div>
-    <p class="info-text"><strong>Auto-calculated:</strong> Anion Gap = Na - (Cl + HCO3), Shock Index = HR / SBP</p>
-</div>
-
-                    <button type="submit" class="btn btn-primary btn-large">
-                        🔮 Veri Kaydet ve Tahmin Yap
-                    </button>
-                </form>
+        <!-- ===== PATIENT DETAIL ===== -->
+        <section class="view" id="view-patient-detail">
+            <div class="patient-head">
+                <div class="avatar avatar-lg" id="detail-avatar">?</div>
+                <div class="patient-head-info">
+                    <h2 id="detail-name">—</h2>
+                    <p id="detail-meta">—</p>
+                </div>
+                <div class="patient-head-actions">
+                    <button class="btn btn-ghost" onclick="switchView('patients')">← Liste</button>
+                    <button class="btn btn-danger-ghost" onclick="deleteCurrentPatient()">Sil</button>
+                </div>
             </div>
 
-            <!-- Saatlik Veri Geçmişi -->
             <div class="card">
-                <h3>📝 Saatlik Veri Geçmişi</h3>
-                <div id="hourly-history" class="hourly-history">
-                    <!-- Saatlik veriler buraya yüklenecek -->
-                    <p class="text-muted">Henüz saatlik veri yok</p>
+                <div class="card-head">
+                    <h2>Risk trendi</h2>
+                    <span class="legend-note">Gölgeli alan: MC-Dropout %90 belirsizlik aralığı · kesikli çizgi: karar eşiği</span>
                 </div>
+                <div class="chart-box"><canvas id="risk-chart"></canvas></div>
             </div>
-        </div>
-    </div>
 
-    <!-- Hasta Ekleme Modal -->
-    <div id="add-patient-modal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>➕ Yeni Hasta Ekle</h3>
-                <button class="close-btn" onclick="closeAddPatientModal()">&times;</button>
-            </div>
-            <form id="add-patient-form" onsubmit="addPatient(event)">
-                <div class="form-group">
-                    <label>Hasta ID *</label>
-                    <input type="text" id="new-patient-id" required placeholder="P001, P002, vb.">
-                </div>
-                <div class="form-group">
-                    <label>Hasta Adı *</label>
-                    <input type="text" id="new-patient-name" required placeholder="Ahmet Y.">
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Yaş</label>
-                        <input type="number" id="new-patient-age" min="0" max="120" placeholder="45">
+            <div class="detail-grid">
+                <!-- Left: data entry -->
+                <div class="card entry-card">
+                    <div class="card-head">
+                        <h2>Saatlik veri girişi</h2>
+                        <button type="button" class="btn btn-ghost btn-sm" onclick="copyLastVitals()" id="btn-copy-last" disabled>Son saati kopyala</button>
                     </div>
-                    <div class="form-group">
-                        <label>Cinsiyet</label>
+
+                    <form id="hourly-data-form" onsubmit="submitHourlyData(event)" novalidate>
+                        <div class="completeness" id="completeness">
+                            <div class="completeness-top">
+                                <span>Veri tamlığı</span>
+                                <span id="completeness-text">0 / 5 temel vital</span>
+                            </div>
+                            <div class="bar"><div class="bar-fill" id="completeness-bar"></div></div>
+                            <p class="hint" id="completeness-hint">Tahmin için en az 3 temel vital bulgu gerekli.</p>
+                        </div>
+
+                        <div class="field-row hour-row">
+                            <label class="field">
+                                <span class="field-label"><span>YBÜ kalış saati <em>*</em></span></span>
+                                <input type="number" id="inp-Hour" min="0" required inputmode="numeric">
+                                <span class="field-help">Yatıştan bu yana geçen saat</span>
+                            </label>
+                        </div>
+
+                        <div id="field-groups"></div>
+
+                        <div class="form-actions">
+                            <button type="reset" class="btn btn-ghost" onclick="setTimeout(updateCompleteness)">Temizle</button>
+                            <button type="submit" class="btn btn-primary btn-lg" id="btn-submit">Kaydet ve değerlendir</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Right: assessment -->
+                <aside class="assessment" id="assessment">
+                    <div class="card assess-card" id="assess-card">
+                        <div class="assess-empty" id="assess-empty">
+                            <div class="assess-empty-icon">
+                                <svg viewBox="0 0 24 24"><path d="M3 12h4l2-5 4 10 2-5h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            </div>
+                            <h3>Henüz değerlendirme yok</h3>
+                            <p>Veri girip kaydettiğinizde risk skoru ve bu skorun ne kadar güvenilir olduğu burada görünür.</p>
+                        </div>
+                        <div id="assess-body" hidden></div>
+                    </div>
+                </aside>
+            </div>
+
+
+            <div class="card">
+                <div class="card-head"><h2>Saatlik kayıtlar</h2></div>
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead><tr><th>Saat</th><th>Vital bulgular</th><th>Skor</th><th>Risk</th><th>Güvenilirlik</th><th></th></tr></thead>
+                        <tbody id="hourly-history"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== ALERTS ===== -->
+        <section class="view" id="view-alerts">
+            <div class="card">
+                <div class="card-head"><h2>Aktif alarmlar</h2></div>
+                <div id="alerts-body" class="alerts"></div>
+            </div>
+        </section>
+
+        <!-- ===== MODEL INFO ===== -->
+        <section class="view" id="view-model-info">
+            <div id="model-info-body"><div class="spinner"></div></div>
+        </section>
+    </main>
+</div>
+
+<!-- ===== ADD PATIENT MODAL ===== -->
+<div class="modal" id="modal-add-patient" hidden>
+    <div class="modal-box" role="dialog" aria-labelledby="modal-title">
+        <div class="modal-head">
+            <h3 id="modal-title">Yeni hasta</h3>
+            <button class="icon-btn" onclick="closeAddPatientModal()" aria-label="Kapat">&times;</button>
+        </div>
+        <form id="add-patient-form" onsubmit="addPatient(event)">
+            <div class="modal-body">
+                <label class="field">
+                    <span class="field-label"><span>Hasta ID <em>*</em></span></span>
+                    <input type="text" id="new-patient-id" required placeholder="P001">
+                </label>
+                <label class="field">
+                    <span class="field-label"><span>Ad Soyad <em>*</em></span></span>
+                    <input type="text" id="new-patient-name" required>
+                </label>
+                <div class="field-row">
+                    <label class="field">
+                        <span class="field-label">Yaş</span>
+                        <input type="number" id="new-patient-age" min="0" max="120">
+                        <span class="field-help">Model girdisi — boş kalırsa 64 varsayılır</span>
+                    </label>
+                    <label class="field">
+                        <span class="field-label">Cinsiyet</span>
                         <select id="new-patient-gender">
                             <option value="">Seçiniz</option>
                             <option value="Male">Erkek</option>
                             <option value="Female">Kadın</option>
                         </select>
-                    </div>
+                    </label>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" onclick="closeAddPatientModal()">İptal</button>
-                    <button type="submit" class="btn btn-primary">Hasta Ekle</button>
-                </div>
-            </form>
-        </div>
+            </div>
+            <div class="modal-foot">
+                <button type="button" class="btn btn-ghost" onclick="closeAddPatientModal()">İptal</button>
+                <button type="submit" class="btn btn-primary">Hasta ekle</button>
+            </div>
+        </form>
     </div>
+</div>
 
-    <!-- Toast Bildirimi -->
-    <div id="toast" class="toast"></div>
+<div class="toasts" id="toast-container"></div>
 
-    <script src="script.js"></script>
+<script src="script.js"></script>
 </body>
-
 </html>

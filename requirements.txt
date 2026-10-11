@@ -1,22 +1,15 @@
-# Core Dependencies
-tensorflow>=2.10.0,<2.16.0
-numpy>=1.23.0,<2.0.0
-pandas>=1.5.0,<3.0.0
-scikit-learn>=1.2.0,<2.0.0
+# Python 3.10 ile test edildi (TensorFlow 2.10, Python 3.11+ ile Windows'ta kurulmaz)
 
-# Web Application
-flask>=3.0.0
-flask-cors>=4.0.0
+# Web uygulaması + tahmin (zorunlu)
+tensorflow==2.10.0
+numpy==1.26.4
+pandas==2.3.3
+scikit-learn==1.7.2
+flask==3.1.2
+flask-cors==6.0.1
 
-# Data Processing
-scipy>=1.10.0
+# Grafikler ve eğitim betikleri
+matplotlib==3.10.9
 
-# Visualization (optional)
-matplotlib>=3.6.0
-seaborn>=0.12.0
-
-# Progress bars
-tqdm>=4.65.0
-
-# Database
-# SQLite is built-in with Python
+# İsteğe bağlı: LightGBM karşılaştırması (scripts/baseline_lightgbm.py)
+# lightgbm==4.7.0

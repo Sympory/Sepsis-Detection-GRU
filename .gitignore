@@ -179,6 +179,8 @@ models/gru_v24_56features/*
 !models/.gitkeep
 *.pkl
 !data/processed/*.pkl
+!models/v3/*.pkl
+!models/optimized/calibrator.pkl
 logs/
 *.log
 temp/
