@@ -20,16 +20,27 @@ df = pd.read_csv(os.path.join(ROOT, 'data', 'train.csv'))
 df = df.sort_values(['Patient_ID', 'ICULOS']).reset_index(drop=True).dropna(subset=['SepsisLabel'])
 test_ids = split_patients(df)['test']
 d = df[df.Patient_ID.isin(test_ids)].reset_index(drop=True)
-tr = pickle.load(open(os.path.join(ROOT, 'models', 'v3', 'transformer.pkl'), 'rb'))
-model = keras.models.load_model(os.path.join(ROOT, 'models', 'v3', 'model.keras'))
-
-X = tr.transform(build_hourly_features(d, group_col='Patient_ID'))
+from config import FEATURE_SET, MODEL_INFO
 groups = d.groupby('Patient_ID', sort=False).indices
-Xw, idx_all = [], []
-for pid, idx in groups.items():
-    idx = np.sort(idx); Xw.append(make_windows(X[idx], 6)); idx_all.append(idx)
-Xw = np.concatenate(Xw); idx_all = np.concatenate(idx_all)
-p = np.empty(len(d)); p[idx_all] = model.predict(Xw, batch_size=8192, verbose=0).ravel()
+if FEATURE_SET == 'v4':
+    # Uygulamadaki hibrit model: zaman serisi özellikleri → LightGBM (NumPy) + sinir ağı
+    from features_v4 import build_v4
+    from gbm_numpy import NumpyGBM
+    F = build_v4(d, group_col='Patient_ID')
+    gbm = NumpyGBM.load(os.path.join(ROOT, 'models', 'v4', 'trees.json'))
+    scaler = pickle.load(open(os.path.join(ROOT, 'models', 'v4', 'scaler.pkl'), 'rb'))
+    mlp = keras.models.load_model(os.path.join(ROOT, 'models', 'v4', 'mlp.keras'))
+    w = float(MODEL_INFO['ensemble_weight_lightgbm'])
+    p = w * gbm.predict(F.to_numpy()) + (1 - w) * mlp.predict(scaler.transform(F), batch_size=16384, verbose=0).ravel()
+else:
+    tr = pickle.load(open(os.path.join(ROOT, 'models', 'v3', 'transformer.pkl'), 'rb'))
+    model = keras.models.load_model(os.path.join(ROOT, 'models', 'v3', 'model.keras'))
+    X = tr.transform(build_hourly_features(d, group_col='Patient_ID'))
+    Xw, idx_all = [], []
+    for pid, idx in groups.items():
+        idx = np.sort(idx); Xw.append(make_windows(X[idx], 6)); idx_all.append(idx)
+    Xw = np.concatenate(Xw); idx_all = np.concatenate(idx_all)
+    p = np.empty(len(d)); p[idx_all] = model.predict(Xw, batch_size=8192, verbose=0).ravel()
 d['p'] = p
 
 # Uygulamadaki klinik kural puanı (o saatte girilen ham değerlerle)
@@ -53,8 +64,8 @@ recent = recent + mapok.groupby(d.Patient_ID).transform(lambda s: s.rolling(4, m
 d['gate_recent'] = recent >= MIN_CORE_VITALS
 
 rules = {
-    'Model yalnız (eşik 0.35)': d.p >= OPTIMAL_THRESHOLD,
-    'Model yalnız (tarama eşiği 0.032)': d.p >= 0.0321,
+    f'Model yalnız (eşik {OPTIMAL_THRESHOLD})': d.p >= OPTIMAL_THRESHOLD,
+    'Model yalnız (tarama eşiği)': d.p >= float(json.load(open(os.path.join(ROOT, 'models', FEATURE_SET, 'reliability_stats.json'), encoding='utf-8'))['val_sens80_threshold']),
     'Uygulama: Yüksek+ (model+klinik kural, veri kapısı)': (d.adj >= 0.35) & d.gate_now,
     'Uygulama: Orta+ (model+klinik kural, veri kapısı)': (d.adj >= 0.20) & d.gate_now,
 }

@@ -1,4 +1,120 @@
-# Model Mimarisi — Satır Satır Açıklama (GRU v3)
+# Model Mimarisi — Satır Satır Açıklama
+
+Aktif model: **v4 hibrit** (sinir ağı + LightGBM). Önceki model **GRU v3** ikinci bölümde anlatılıyor; ödevde
+"önce GRU ile başladık, özellik mühendisliği ve hibrit modelle 0.806 → 0.847'ye çıktık" hikâyesi için ikisi de lazım.
+
+---
+
+# Bölüm 1 — v4 Hibrit Model (aktif)
+
+```
+1. Hastanın yatıştan bu yana saatlik verisi → 281 zaman serisi özelliği (son saat için)
+2. Dal A — LightGBM: 3 seed × ~185 ağaç (toplam 556), saf NumPy ile çalışır
+3. Dal B — Sinir ağı:
+     GaussianNoise(0.1) — yalnızca eğitimde
+     Dense(256, ReLU) → BatchNorm → Dropout(0.5)
+     Dense(128, ReLU) → BatchNorm → Dropout(0.5)
+     Dense(64, ReLU)  → Dropout(0.5)
+     Dense(1, Sigmoid)
+4. Birleşim: 0.7 × LightGBM + 0.3 × sinir ağı
+5. İzotonik kalibrasyon → P(Sepsis); MC-Dropout (sinir ağı dalı) → belirsizlik aralığı
+```
+
+Kod: `features_v4.py` (özellikler), `scripts/train_hybrid.py` (eğitim), `ml_service.py` (tahmin), `gbm_numpy.py` (ağaçlar)
+
+## 1. Girdi: 281 zaman serisi özelliği
+
+GRU v3 modele son 6 saatin ham değerlerini veriyordu; "nabız 24 saattir yükseliyor" gibi bir eğilimi model kendisi
+çıkarmak zorundaydı. v4'te bu bilgiler **açıkça hesaplanıp** verilir. Her özellik yalnızca o saate kadarki veriden
+hesaplanır (geleceğe bakmaz).
+
+| Grup | Sayı | Örnek |
+|------|------|-------|
+| Son bilinen değer (ileri doldurma) | 34 | Nabız = 118 |
+| Bu saat ölçüldü mü | 34 | Laktat bu saat ölçüldü: 1 |
+| Son ölçümden geçen saat | 34 | Son FiO2 ölçümü 5 saat önce |
+| Şimdiye kadarki ölçüm sayısı | 34 | 12 kez SpO2 ölçüldü |
+| 6 ve 24 saatlik ortalama, min, maks (+ vitallerde std) | 84 | 6 saatlik en yüksek ateş |
+| Değişim (1 ve 6 saat önceye göre) | 24 | Nabız 6 saatte +25 |
+| Yatıştan bu yana en yüksek/düşük/ortalama, ortalamadan sapma | 24 | Yatıştan bu yana en düşük tansiyon |
+| Klinik skorlar | 9 | Şok indeksi (nabız/tansiyon), SIRS, kısmi SOFA ve 24 saatlik değişimi, SpO2/FiO2, nabız basıncı, BUN/kreatinin |
+| Yaş, cinsiyet, YBÜ saati, kayıt sayısı | 4 | |
+| **Toplam** | **281** | |
+
+Girilmeyen saatler boş satır olarak eklenir (eğitim verisinde her satır bir saat); böylece "24 saatlik ortalama"
+gerçekten 24 saati kapsar.
+
+## 2. Dal A — LightGBM (gradient boosting)
+
+**Karar ağacı:** "Ateş > 38.4 mü? → Evet → Laktat ölçüleli 3 saatten az mı? → …" gibi sorularla veriyi bölen yapı.
+**Gradient boosting:** Ağaçlar sırayla eğitilir; her yeni ağaç öncekilerin **hatasını** düzeltmeye çalışır.
+Sonuç: yüzlerce küçük ağacın toplamı.
+
+| Ayar | Değer | Anlamı |
+|------|-------|--------|
+| num_leaves = 31 | | Her ağaçta en fazla 31 yaprak; küçük ağaç = ezberleme riski az |
+| min_child_samples = 1000 | | Bir yaprağa en az 1000 örnek düşmeli; tek hastaya özel kural öğrenilemez |
+| lambda_l2 = 20 | | Yaprak değerlerine L2 cezası (düzenlileştirme) |
+| feature_fraction = 0.4 | | Her ağaç özelliklerin rastgele %40'ını görür |
+| learning_rate = 0.03 | | Her ağacın katkısı küçük tutulur |
+| scale_pos_weight = 5 | | Sepsis örnekleri 5 kat ağırlıklı (%1.8 pozitif) |
+| 3 seed | | Farklı rastgele başlangıçla 3 model, ortalamaları alınır (daha kararlı) |
+
+**Neden saf NumPy?** Windows'ta LightGBM'in C kütüphanesi, TensorFlow ile aynı programda bazı fonksiyonlarda
+çöküyor. Eğitilmiş ağaçlar JSON'a aktarılıyor ve uygulamada her ağaç NumPy ile dolaşılıyor (`gbm_numpy.py`).
+Sonuç LightGBM'in kendi tahminiyle **birebir aynı** (eğitim betiği her seferinde doğruluyor, fark 0.0).
+
+## 3. Dal B — Sinir ağı (çok katmanlı algılayıcı, MLP)
+
+| Katman | Çıktı | Parametre | Anlamı |
+|--------|-------|-----------|--------|
+| Girdi | 281 | 0 | Standartlaştırılmış özellikler (z-skoru, ±6 ile kırpılmış) |
+| GaussianNoise(0.1) | 281 | 0 | Eğitimde girdiye küçük gürültü; ezberlemeyi azaltır |
+| Dense(256, ReLU) | 256 | 72.192 | 281×256 ağırlık + 256 bias. ReLU = max(0, x) |
+| BatchNormalization | 256 | 1.024 | Her mini-batch'te aktivasyonları normalize eder; eğitimi hızlandırır ve kararlı kılar |
+| Dropout(0.5) | 256 | 0 | Nöronların yarısı rastgele kapatılır (eğitimde ve MC-Dropout'ta) |
+| Dense(128, ReLU) | 128 | 32.896 | |
+| BatchNormalization | 128 | 512 | |
+| Dropout(0.5) | 128 | 0 | |
+| Dense(64, ReLU) | 64 | 8.256 | |
+| Dropout(0.5) | 64 | 0 | |
+| Dense(1, Sigmoid) | 1 | 65 | 0–1 arası olasılık |
+| **Toplam** | | **114.945** | |
+
+**Neden GRU değil de MLP?** Özellikler hastanın geçmişini zaten özetliyor. Denemelerde GRU'lar 1–2 epoch sonra hastaları
+ezberlemeye başladı (eğitim AUC 0.92, validasyon 0.72); MLP aynı özelliklerle daha iyi genelledi (0.829).
+
+**Eğitim:** Adam (lr 1e-3), batch 4096, binary cross-entropy, pozitif sınıf ağırlığı 5, L2 1e-4, validasyon PR-AUC ile
+erken durdurma ve öğrenme hızını yarıya indirme.
+
+## 4. Birleşim (ensemble)
+
+`P = 0.7 × P_LightGBM + 0.3 × P_sinir_ağı`
+
+Ağırlık validasyon hastalarında 0.05 adımlarla denenip PR-AUC'yi en yüksek yapan değer olarak seçildi.
+İki model farklı hatalar yaptığı için ortalamaları her birinden daha kararlıdır; sinir ağı dalı ayrıca MC-Dropout ile
+**belirsizlik** ölçümü sağlar (ağaç modelinin böyle bir özelliği yok).
+
+## 5. Kalibrasyon, eşik, güvenilirlik
+
+- **İzotonik kalibrasyon:** Ham %42 → gözlenen oran %13.7 (sınıf ağırlıkları skoru yukarı iter). ECE 0.048 → 0.002.
+- **Eşik 0.33:** validasyonda F1'i en yüksek yapan değer. Tarama eşiği 0.066 (%80 duyarlılık).
+- **MC-Dropout:** sinir ağı 30 kez Dropout açık çalıştırılır; `0.7 × LightGBM + 0.3 × her örnek` → %90 aralık.
+  Testte model kararlıyken doğruluk %65, kararsızken %44.
+
+## 6. Sonuçlar (test, tek seferlik)
+
+| Model | ROC-AUC | PR-AUC |
+|-------|---------|--------|
+| Hibrit v4 | **0.847** | **0.132** |
+| LightGBM dalı | 0.847 | 0.131 |
+| Sinir ağı dalı | 0.823 | 0.113 |
+| GRU v3 | 0.806 | 0.095 |
+
+---
+
+# Bölüm 2 — GRU v3 (önceki model)
+
 
 ```
 1. Input(6 saat × 71 özellik: 34 değer + 34 ölçüm maskesi + yaş, cinsiyet, saat)

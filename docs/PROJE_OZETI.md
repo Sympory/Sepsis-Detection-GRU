@@ -76,19 +76,19 @@ her saatlik gecikme riski artırır.
 | Hasta içinde **ileri doldurma** | Lab değerleri her saat ölçülmez; son ölçülen değer geçerli kabul edilir |
 | **Ölçüm maskeleri** (0/1) | Modele “bu değer bu saat ölçüldü mü” bilgisi ayrıca verilir |
 | **Z-skoru standartlaştırma** | Farklı birimlerdeki değerleri aynı ölçeğe getirmek |
-| **Kayan pencere** (6 saat) | Zaman serisini modele uygun hale getirmek |
+| **Zaman serisi özellikleri** (281) | Eğilimi modele açıkça vermek: 6/24 saatlik ve yatıştan bu yana ortalama-min-maks, değişim, son ölçümden geçen süre, SIRS/SOFA/şok indeksi |
 | **Hasta bazlı bölme** (%60/%20/%20) | Aynı hasta hem eğitimde hem testte olmasın, yani **veri sızıntısı** olmasın |
 
-### Model — GRU sinir ağı
+### Model — Hibrit: yapay sinir ağı + LightGBM
 ```
-Girdi (6 saat × 71 özellik)
-  → Gaussian gürültü (yalnız eğitimde)
-  → Çift yönlü GRU (64) → Dropout
-  → GRU (64) → Dropout
-  → Dense (32, ReLU) → Dropout
-  → Dense (1, Sigmoid) → Sepsis olasılığı
+281 zaman serisi özelliği
+  ├─ Sinir ağı (MLP): Dense 256 → Dense 128 → Dense 64 → Sigmoid
+  │    (BatchNorm, Dropout 0.5, Gaussian gürültü, L2) — 114.945 ağırlık
+  └─ LightGBM: 3 seed × ~185 karar ağacı (uygulamada saf NumPy ile)
+  → 0.3 × sinir ağı + 0.7 × LightGBM → izotonik kalibrasyon → Sepsis olasılığı
 ```
-**GRU**, zaman serisindeki değişimi hafızasında tutabilen tekrarlayan bir sinir ağıdır. Yaklaşık 92 bin parametre.
+İlk model bir **GRU** (tekrarlayan sinir ağı) idi: son 6 saatin ham değerlerini görüyordu (0.806). Eğilimleri açıkça
+hesaplayan özellikler ve iki modelin birleşimiyle **0.847**'ye çıkıldı. Ayrıntı: `docs/MIMARI_ACIKLAMA.md`.
 
 ### Eğitim
 | Teknik | Neden |
@@ -169,10 +169,11 @@ Değerler, eğitimde **hiç görülmemiş 8.066 test hastası** üzerinde ölç�
 
 | Metrik | Değer |
 |--------|-------|
-| ROC-AUC | **0.806** |
-| PR-AUC | 0.095 (rastgele tahminin ~5 katı) |
-| Kalibrasyon hatası | 0.040 → **0.001** |
-| Normal / septik hasta skoru | **%1.7 / %41** |
+| ROC-AUC | **0.847** (ilk GRU: 0.806) |
+| PR-AUC | **0.132** (rastgele tahminin ~7 katı; ilk GRU: 0.095) |
+| Kalibrasyon hatası | 0.048 → **0.002** |
+| Normal / septik hasta skoru (24. saat) | **%6 / %36** |
+| Tarama modunda özgüllük (%80 duyarlılıkta) | %64 → **%75** (yanlış alarm ~%30 az) |
 
 ### Geliştirme sürecinde öğrenilenler
 | Sürüm | Sonuç | Ders |
@@ -180,7 +181,8 @@ Değerler, eğitimde **hiç görülmemiş 8.066 test hastası** üzerinde ölç�
 | İlk model | 0.880 | Veri rastgele bölünmüştü, aynı hasta testte de vardı → **iyimser sonuç** |
 | 56 özellikli model | 0.9997 | Veri setindeki bazı biyobelirteçler sentetikti, etiketi ele veriyordu → **sızıntı** |
 | Eski model | 0.809 | Septik hastaya %7 veriyordu: “değer ne?” yerine “ölçüldü mü?” öğrenmişti |
-| **Güncel model** | **0.806** | Klinik olarak tutarlı; eksik veride tahmin vermiyor |
+| GRU v3 | 0.806 | Klinik olarak tutarlı; eksik veride tahmin vermiyor |
+| **Hibrit v4 (güncel)** | **0.847** | Eğilimler açıkça hesaplanınca hem sinir ağı hem ağaç modeli belirgin iyileşti |
 
 **Ana ders:** Yüksek skor her zaman iyi model demek değildir. Doğru değerlendirme yöntemi en az model kadar önemlidir.
 

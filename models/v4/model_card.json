@@ -1,0 +1,24 @@
+{
+  "name": "Hibrit: LightGBM (3 seed) + Sinir Ağı (MLP)",
+  "version": "v4 (zaman serisi özellikleri)",
+  "feature_set": "v4",
+  "params": 114945,
+  "n_trees": 556,
+  "roc_auc": 0.8473815672978873,
+  "pr_auc": 0.13175975785489322,
+  "best_f1": 0.20148462354188756,
+  "threshold": 0.32999999999999996,
+  "ensemble_weight_lightgbm": 0.7,
+  "input_shape": [
+    281
+  ],
+  "loss_function": "Binary Cross-Entropy (pozitif sınıf ağırlığı 5) · LightGBM: binary, scale_pos_weight 5",
+  "trained_date": "2026-10-12",
+  "architecture": [
+    "Girdi: 281 zaman serisi özelliği (son değer, ölçüm maskesi, son ölçümden geçen süre, 6/24 saatlik ve yatıştan bu yana ortalama-min-maks-std, değişim, SIRS/SOFA/şok indeksi)",
+    "Dal 1 — LightGBM: 3 seed × ~185 ağaç, 31 yaprak, L2=20 (uygulamada saf NumPy ile çalışır)",
+    "Dal 2 — Sinir ağı: GaussianNoise(0.1) → Dense(256, ReLU) → BatchNorm → Dropout(0.5) → Dense(128, ReLU) → BatchNorm → Dropout(0.5) → Dense(64, ReLU) → Dropout(0.5) → Dense(1, Sigmoid)",
+    "Birleşim: 0.70 × LightGBM + 0.30 × MLP (validasyonda seçildi)",
+    "İzotonik kalibrasyon → P(Sepsis)"
+  ]
+}

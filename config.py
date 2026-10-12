@@ -12,8 +12,8 @@ import os
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # ---------- MODEL ----------
-# Aktif model: models/v3 (ileri doldurma + ölçüm maskeleri) varsayılandır.
-# Eski model için:  set SEPSIS_MODEL=legacy   (Windows)  /  export SEPSIS_MODEL=legacy
+# Aktif model: models/v4 (hibrit LightGBM + sinir ağı) varsayılandır; yoksa v3, o da yoksa eski model.
+# Seçmek için:  set SEPSIS_MODEL=v3   (Windows)  /  export SEPSIS_MODEL=v3
 import json
 
 V3_DIR = os.path.join(PROJECT_ROOT, 'models', 'v3')
@@ -51,26 +51,42 @@ LEGACY_MODEL_INFO = {
 }
 
 
-def _load_v3_card():
-    card_path = os.path.join(V3_DIR, 'model_card.json')
-    if not (os.path.exists(card_path) and os.path.exists(os.path.join(V3_DIR, 'model.keras'))
-            and os.path.exists(os.path.join(V3_DIR, 'transformer.pkl'))):
+V4_DIR = os.path.join(PROJECT_ROOT, 'models', 'v4')
+MODEL_FILES = {
+    'v4': (V4_DIR, ['model_card.json', 'mlp.keras', 'trees.json', 'scaler.pkl']),
+    'v3': (V3_DIR, ['model_card.json', 'model.keras', 'transformer.pkl']),
+}
+
+
+def _load_card(name):
+    directory, files = MODEL_FILES[name]
+    if not all(os.path.exists(os.path.join(directory, f)) for f in files):
         return None
-    with open(card_path, encoding='utf-8') as f:
+    with open(os.path.join(directory, 'model_card.json'), encoding='utf-8') as f:
         return json.load(f)
 
 
-_requested = os.environ.get('SEPSIS_MODEL', 'v3').lower()
-_v3_card = _load_v3_card() if _requested == 'v3' else None
+# Varsayılan: v4 (hibrit) → yoksa v3 → yoksa eski model. Seçmek için SEPSIS_MODEL=v4|v3|legacy
+_requested = os.environ.get('SEPSIS_MODEL', 'v4').lower()
+_order = {'v4': ['v4', 'v3'], 'v3': ['v3'], 'legacy': []}.get(_requested, ['v4', 'v3'])
+_card, FEATURE_SET = None, 'legacy'
+for _name in _order:
+    _card = _load_card(_name)
+    if _card:
+        FEATURE_SET = _name
+        break
 
-if _v3_card:
-    FEATURE_SET = 'v3'
+if FEATURE_SET == 'v4':
+    MODEL_PATH = os.path.join(V4_DIR, 'mlp.keras')
+elif FEATURE_SET == 'v3':
     MODEL_PATH = os.path.join(V3_DIR, 'model.keras')
-    OPTIMAL_THRESHOLD = round(float(_v3_card['threshold']), 3)
-    MODEL_INFO = dict(_v3_card, threshold=OPTIMAL_THRESHOLD)
 else:
-    FEATURE_SET = 'legacy'
     MODEL_PATH = LEGACY_MODEL_PATH
+
+if _card:
+    OPTIMAL_THRESHOLD = round(float(_card['threshold']), 3)
+    MODEL_INFO = dict(_card, threshold=OPTIMAL_THRESHOLD)
+else:
     OPTIMAL_THRESHOLD = LEGACY_THRESHOLD
     MODEL_INFO = LEGACY_MODEL_INFO
 

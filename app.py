@@ -242,6 +242,8 @@ def add_hourly_data(patient_pk):
         return fail('Saat geçerli bir tam sayı olmalı')
     if hour < 0:
         return fail('Saat negatif olamaz')
+    if hour > ml.MAX_HOUR:
+        return fail(f'Saat en fazla {ml.MAX_HOUR} olabilir')
 
     is_valid, errors = ml.validate_vital_signs(data['vital_signs'])
     if not is_valid:
@@ -579,7 +581,8 @@ def model_info():
         'model': MODEL_INFO,
         'threshold': OPTIMAL_THRESHOLD,
         'window_size': ml.WINDOW_SIZE,
-        'features': feature_names() if FEATURE_SET == 'v3' else ml.numerical_columns,
+        'features': (ml.v4_scaler.columns if FEATURE_SET == 'v4' and ml.v4_scaler is not None
+                     else feature_names() if FEATURE_SET == 'v3' else ml.numerical_columns),
         'feature_set': FEATURE_SET,
         'unused_fields': ml.MODEL_UNUSED_FIELDS,
         'reliability_stats': ml.estimator.stats if ml.estimator else {},

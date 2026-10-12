@@ -18,20 +18,23 @@
 
 ## 📋 Genel Bakış
 
-Bu proje, yoğun bakım ünitesindeki (YBÜ) hastaların saatlik vital bulgu ve laboratuvar
-verilerinden **sepsis riskini** tahmin eden bir **GRU (Gated Recurrent Unit)** sinir ağı ve
-bu modeli kullanan bir **Flask web uygulaması** içerir.
+Bu proje, yoğun bakım ünitesindeki (YBÜ) hastaların saatlik vital bulgu ve laboratuvar verilerinden
+**sepsis riskini** tahmin eden **hibrit bir yapay zekâ modeli** (yapay sinir ağı + LightGBM) ve bu modeli
+kullanan, rol bazlı girişi ve normalize veritabanı olan bir **Flask web uygulaması** içerir.
 
-Model son **6 saatlik** hasta verisine bakar ve sepsis olasılığını üretir. Uygulama her tahmin için
-ayrıca **bu tahminin ne kadar güvenilir olduğunu** hesaplar ve gerekçeleriyle birlikte gösterir.
+Model hastanın yatışından bu yana tüm saatlik verisini zaman serisi özelliklerine (son değer, eğilim,
+son ölçümden geçen süre, SIRS/SOFA benzeri skorlar…) çevirir ve sepsis olasılığını üretir.
+Uygulama her tahmin için ayrıca **bu tahminin ne kadar güvenilir olduğunu** hesaplar ve gerekçeleriyle gösterir.
 
 ### 🎯 Öne Çıkanlar
 
 - **40.336 hasta, 1,55 milyon saatlik kayıt** — PhysioNet / Computing in Cardiology Challenge 2019 verisi
-- **Hasta bazlı test** — test hastalarının hiçbiri eğitimde görülmedi (veri sızıntısı yok)
-- **ROC-AUC 0.806, PR-AUC 0.095** — 8.066 görülmemiş test hastasında
-- **Klinik tutarlılık** — aynı saatte normal vitallere %1.7, septik vitallere %41 risk
+- **Hasta bazlı test** — test hastalarının hiçbiri eğitimde görülmedi; test seti yalnızca bir kez kullanıldı
+- **ROC-AUC 0.847, PR-AUC 0.132** — 8.066 görülmemiş test hastasında (önceki GRU: 0.806 / 0.095)
+- **Hibrit model** — 281 zaman serisi özelliği üzerinde sinir ağı (MLP) + LightGBM; ağaçlar uygulamada saf NumPy ile çalışır
+- **Klinik tutarlılık** — aynı saatte normal vitallere %6, septik vitallere %36 risk
 - **Güvenilirlik skoru** — MC-Dropout belirsizliği, veri tamlığı, izotonik kalibrasyon
+- **Rol bazlı sistem** — hemşire / doktor / yönetici, değiştirilemez denetim kaydı
 - **Tek tıkla çalışır** — `baslat.bat` Python'u bulur, paketleri kontrol eder, tarayıcıyı açar
 
 ---
@@ -58,17 +61,18 @@ Sunumdan önce her şeyin çalıştığını doğrulamak için **`sistem_kontrol
 ```
 === SepsisAI sistem kontrolü ===
   [OK] Python sürümü — 3.10
-  [OK] Aktif model — v3 → models\v3\model.keras
+  [OK] Aktif model — v4 → models\v4\mlp.keras
   [OK] Boş form reddediliyor
   [OK] Tek vital → Yetersiz Veri
-  [OK] Normal hasta tahmini — skor %2.5, Çok Düşük
-  [OK] Septik hasta tahmini — skor %37.0, Çok Yüksek
+  [OK] Normal hasta tahmini — skor %2.2, Çok Düşük
+  [OK] Septik hasta tahmini — skor %32.6, Çok Yüksek
+  [OK] Hibrit model: iki dal da çalışıyor
   [OK] Model septik hastaya daha yüksek skor veriyor
   [OK] Hemşire alarm onaylayamaz
   [OK] Yönetici veri giremez
   [OK] Denetim kaydı silinemez
   ...
-47/47 kontrol geçti.
+57/57 kontrol geçti.
 TÜM KONTROLLER BAŞARILI — uygulama sunuma hazır.
 ```
 
@@ -94,11 +98,12 @@ py -3.10 app.py
 
 ### Model
 
-✅ **Zaman serisi modelleme**: 6 saatlik geriye bakış penceresi, iki katmanlı GRU
-✅ **71 özellik**: 34 klinik değişken + 34 “bu saat ölçüldü mü” maskesi + yaş, cinsiyet, YBÜ saati
+✅ **Hibrit yapay zekâ**: sinir ağı (MLP, 3 gizli katman) + LightGBM (3 seed), olasılıkların ağırlıklı ortalaması
+✅ **281 zaman serisi özelliği**: son değer, ölçüm maskesi, son ölçümden geçen süre, 6/24 saatlik ve yatıştan bu yana istatistikler, değişim, SIRS/SOFA/şok indeksi
 ✅ **İleri doldurma**: Laboratuvar değerleri her saat ölçülmez; son ölçülen değer geçerli kabul edilir
 ✅ **Dengesiz veri**: Pozitif oran %1.8; sınıf ağırlığı + PR-AUC ile erken durdurma
 ✅ **Kalibrasyon**: İzotonik regresyon. Ham skor, gözlenen sepsis oranına çevrilir
+✅ **Saf NumPy ağaçlar**: LightGBM, TensorFlow ile aynı süreçte Windows'ta çöktüğü için ağaçlar JSON'a aktarılıp NumPy ile çalıştırılır (sonuç birebir aynı)
 
 ### Web uygulaması
 
@@ -114,54 +119,60 @@ py -3.10 app.py
 
 ## 📊 Performans
 
-Tüm değerler, eğitimde **hiç görülmemiş 8.066 test hastası** (308.743 saatlik pencere, %1.8 pozitif) üzerindedir.
-
-| Metrik | Değer | Yorum |
-|--------|-------|-------|
-| **ROC-AUC** | 0.806 | Sepsis/sepsis değil ayrımı |
-| **PR-AUC** | 0.095 | Rastgele tahminin (0.018) ~5 katı |
-| **Brier (kalibre)** | 0.017 | Olasılıkların doğruluğu (düşük = iyi) |
-| **ECE (ham → kalibre)** | 0.040 → 0.001 | Kalibrasyon hatası |
-
-### Karşılaştırma (aynı test hastaları, aynı özellikler)
+Tüm değerler, eğitimde **hiç görülmemiş 8.066 test hastası** (308.743 saatlik kayıt, %1.8 pozitif) üzerindedir.
+Model seçimi, birleşim ağırlığı, kalibrasyon ve eşik **validasyon** hastalarıyla yapıldı; test seti **bir kez** kullanıldı.
 
 | Model | ROC-AUC | PR-AUC |
 |-------|---------|--------|
-| **GRU v3** (bu proje) | 0.806 | 0.095 |
-| LightGBM (son saat + 6 saatlik değişim) | 0.811 | 0.100 |
+| **Hibrit v4 (aktif)** — 0.7 × LightGBM + 0.3 × sinir ağı | **0.847** | **0.132** |
+| └ LightGBM dalı | 0.847 | 0.131 |
+| └ Sinir ağı dalı (MLP) | 0.823 | 0.113 |
+| GRU v3 (önceki model, son 6 saat) | 0.806 | 0.095 |
 
-İki model neredeyse aynı performansta. Bu veri setinde (PhysioNet 2019) ağaç tabanlı modellerin
-güçlü olduğu bilinir. GRU'nun avantajı zaman serisini doğrudan işlemesi, MC-Dropout ile belirsizlik
-verebilmesi ve tek bir uçtan uca modelle çalışmasıdır.
+| Metrik | Değer |
+|--------|-------|
+| ROC-AUC (YBÜ'de ≥ 6 saat geçmiş hastalar) | 0.858 |
+| Brier (ham → kalibre) | 0.023 → 0.017 |
+| ECE (ham → kalibre) | 0.048 → 0.002 |
 
 ### İki çalışma noktası
 
-Sepsis nadir olduğu için tek bir “doğru” eşik yoktur. Seçim, kaçırılan vaka ile yanlış alarm arasındaki dengedir:
-
 | Eşik | Duyarlılık | Özgüllük | PPV | NPV | Kullanım |
 |------|-----------|----------|-----|-----|----------|
-| **0.35** (varsayılan, F1) | %25.6 | %96.7 | %12.6 | %98.6 | Az alarm, çok vaka kaçar |
-| **0.032** (tarama) | %80.9 | %63.9 | %4.0 | %99.5 | Az vaka kaçar, çok alarm |
+| **0.33** (varsayılan, F1) | %30.7 | %96.8 | %15.0 | %98.7 | Az alarm |
+| **0.066** (tarama) | %80.6 | %74.5 | %5.5 | %99.5 | Az vaka kaçar |
 
-### Karışıklık matrisi (eşik 0.35)
+Tarama eşiğinde önceki modele göre **özgüllük %63.9 → %74.5**: aynı duyarlılıkta yanlış alarmlar yaklaşık %30 azaldı.
 
-|  | Gerçek: Sepsis | Gerçek: Sepsis değil |
+### Gerçek hasta akışında (uygulamanın tam karar mantığı)
+
+Test hastaları saat saat uygulamanın kendi kurallarından (model + klinik kırmızı bayraklar + veri kapısı) geçirildi
+(`scripts/hasta_bazli_test.py`; 425 sepsis hastası, 7.480 sepsis olmayan):
+
+| Karar kuralı | Klinik tanıdan önce alarm alan sepsis hastası | En az bir alarm alan sepsis olmayan hasta |
 |---|---|---|
-| **Tahmin: Sepsis** | 1.425 (TP) | 9.883 (FP) |
-| **Tahmin: Sepsis değil** | 4.147 (FN) | 293.288 (TN) |
+| “Yüksek” ve üstü | %63 (önceki %64) | **%13** (önceki %16) |
+| Tarama eşiği | %94 (önceki %99) | **%58** (önceki %89) |
 
 ### Klinik tutarlılık testi
 
-Aynı YBÜ saatinde iki hayali hasta: normal vitaller (HR 78, Ateş 36.8, SKB 125) ve septik tablo
-(HR 130, Ateş 38.9, SKB 82, SpO2 88, Laktat 4.5, WBC 17).
+Normal vitaller (HR 78, Ateş 36.8, SKB 125) ile son 6 saatte septik tabloya (HR 130, Ateş 38.9, SKB 82,
+SpO2 88, Laktat 4.5, WBC 17) dönen hasta:
 
-| YBÜ saati | Normal | Septik | Eski model (septik) |
-|-----------|--------|--------|---------------------|
-| 6 | %2.3 | **%37.1** | %7.6 |
-| 24 | %1.7 | **%41.4** | %8.8 |
-| 72 | %14.9 | **%63.3** | — |
+| YBÜ saati | Normal | Septik |
+|-----------|--------|--------|
+| 6 | %3.9 | **%35.5** |
+| 24 | %6.0 | **%35.6** |
+| 72 | %10.3 | **%65.3** |
 
-Grafikler: `models/v3/evaluation.png` (ROC, PR, güvenilirlik diyagramı) ve `models/v3/training_history.png`.
+### En önemli özellikler
+
+YBÜ'de geçen süre, son FiO2 ölçümünden bu yana geçen süre, SpO2/nabız ölçüm sayısı, son laktat ölçümünden
+bu yana geçen süre, 6 saatlik en yüksek ateş, şok indeksi. **Not:** “son ölçümden geçen süre” ve “ölçüm sayısı”
+özellikleri hekimin davranışını da yansıtır (şüphelenince test ister); test isteme alışkanlığı farklı bir
+hastanede performans değişebilir.
+
+Grafikler: `models/v4/evaluation.png` (ROC, PR, güvenilirlik diyagramı).
 
 ---
 
@@ -281,24 +292,22 @@ Tüm `/api/*` uçları (giriş ve sağlık kontrolü hariç) oturum ister; paran
 | GET | `/api/model-info` | Aktif model, metrikler, kalibrasyon istatistikleri |
 | GET | `/api/health` | Sistem durumu |
 
-Örnek yanıt (demo hasta “Mehmet Kaya”, YBÜ 24. saat):
+Örnek yanıt (demo hasta “Mehmet Kaya”, YBÜ 24. saat, hibrit model):
 
 ```json
 {
-  "prediction": 0.376,
+  "prediction": 0.421,
   "risk_level": "Çok Yüksek",
   "is_sepsis_risk": true,
-  "threshold": 0.35,
+  "threshold": 0.33,
   "reliability": {
-    "score": 72.7,
+    "score": 96.0,
     "level": "Yüksek",
-    "components": {"completeness": 87.5, "temporal": 100.0, "certainty": 13.3, "in_distribution": 100.0},
-    "mc_dropout": {"mean": 0.371, "p05": 0.263, "p95": 0.481, "agreement": 0.567, "n": 30},
-    "calibrated_probability": 0.095,
-    "reasons": [
-      "Son 6 saatte ölçülmemiş kritik lab: Total Bilirubin",
-      "Model kararsız: stokastik geçişlerin %57'i aynı kararı verdi (skor aralığı %26–%48)."
-    ]
+    "components": {"completeness": 91.2, "temporal": 100.0, "certainty": 100.0, "in_distribution": 100.0},
+    "mc_dropout": {"mean": 0.419, "p05": 0.388, "p95": 0.462, "agreement": 1.0, "n": 30},
+    "components_model": {"lightgbm": 0.407, "neural_net": 0.454, "weight_lightgbm": 0.7},
+    "calibrated_probability": 0.137,
+    "reasons": ["MAP, SBP/DBP'den hesaplandı (60.2 mmHg)"]
   }
 }
 ```
@@ -334,36 +343,30 @@ Flask API (app.py)
               └── reliability.py  → MC-Dropout, tamlık, kalibrasyon, güvenilirlik skoru
 ```
 
-### Model (v3)
+### Model (v4 — hibrit)
 
 ```
-Girdi: (batch, 6 saat, 71 özellik)
-    ↓
-┌───────────────────────────────────┐
-│  GaussianNoise(0.1)               │  ← yalnızca eğitimde, ezberlemeyi azaltır
-└───────────────────────────────────┘
-    ↓
-┌───────────────────────────────────┐
-│  Bidirectional GRU(64) → 128      │  ← zaman içindeki değişim, iki yönlü
-│  L2(1e-4) + Dropout(0.4)          │
-└───────────────────────────────────┘
-    ↓
-┌───────────────────────────────────┐
-│  GRU(64) + Dropout(0.4)           │  ← pencerenin özeti
-└───────────────────────────────────┘
-    ↓
-┌───────────────────────────────────┐
-│  Dense(32, ReLU) + Dropout(0.4)   │
-└───────────────────────────────────┘
-    ↓
-┌───────────────────────────────────┐
-│  Dense(1, Sigmoid)                │
-└───────────────────────────────────┘
-    ↓
-Çıktı: P(Sepsis) ∈ [0, 1]  →  izotonik kalibrasyon
+Hastanın yatıştan bu yana saatlik verisi (girilmeyen saatler boş satır)
+        │
+        ▼
+features_v4.py → 281 özellik (son saat için)
+        │
+        ├──────────────────────────────┐
+        ▼                              ▼
+LightGBM (3 seed, 556 ağaç)       Sinir ağı (MLP, 114.945 ağırlık)
+saf NumPy ile                     GaussianNoise → Dense 256 → BN → Dropout 0.5
+                                  → Dense 128 → BN → Dropout 0.5
+                                  → Dense 64 → Dropout 0.5 → Sigmoid
+        │                              │
+        └──────── 0.7 × + 0.3 × ───────┘
+                       │
+                       ▼
+          İzotonik kalibrasyon → P(Sepsis)
+          MC-Dropout (sinir ağı dalı) → %90 belirsizlik aralığı
 ```
 
-**Parametre sayısı:** 91.969
+Önceki model (GRU v3, son 6 saat × 71 özellik) `SEPSIS_MODEL=v3` ile hâlâ seçilebilir;
+katman katman açıklaması [docs/MIMARI_ACIKLAMA.md](docs/MIMARI_ACIKLAMA.md).
 
 ---
 
@@ -378,7 +381,39 @@ Girdi: (batch, 6 saat, 71 özellik)
 5. **Kayan pencere**: Her saat için son 6 saat; ilk saatlerde ilk ölçüm geriye kopyalanır
 6. **Bölme**: Hasta bazlı, sepsis durumuna göre tabakalı %60 / %20 / %20
 
-### Eğitim (`scripts/train_v3.py`)
+### Hibrit model eğitimi (`scripts/train_hybrid.py`)
+
+| Adım | Ayrıntı |
+|------|---------|
+| LightGBM | 31 yaprak, en az 1000 örnek/yaprak, L2 = 20, özellik oranı 0.4, öğrenme hızı 0.03, 3 seed; val PR-AUC ile erken durdurma |
+| Sinir ağı | Adam (lr 1e-3), batch 4096, pozitif sınıf ağırlığı 5, L2 1e-4, Dropout 0.5; val PR-AUC ile erken durdurma |
+| Birleşim | Ağırlık validasyonda PR-AUC'ye göre seçildi (LightGBM 0.7, sinir ağı 0.3) |
+| Kalibrasyon ve eşik | İzotonik regresyon, F1 ve %80 duyarlılık eşikleri validasyonda |
+| Test | Yalnızca bir kez, en sonda |
+| Süre | ~8 dk (RTX 4060 + işlemci) |
+
+```bash
+py -3.10 scripts/train_hybrid.py                 # hibrit model → models/v4/
+py -3.10 scripts/hasta_bazli_test.py             # uygulama mantığıyla hasta bazlı test
+```
+
+Optimizasyon deneyleri (`scripts/experiments/`, hepsi validasyonda):
+
+| Deney | val ROC-AUC | val PR-AUC |
+|-------|-------------|------------|
+| GRU v3 (6 saat) | 0.804 | 0.097 |
+| GRU, 24 saatlik pencere | 0.813 | 0.101 |
+| GRU + en önemli 80 zaman serisi özelliği | 0.819 | 0.099 |
+| MLP + zaman serisi özellikleri | 0.829 | 0.120 |
+| LightGBM + zaman serisi özellikleri (257) | 0.847 | 0.130 |
+| LightGBM + yatıştan bu yana özellikler (281) | 0.850 | 0.133 |
+| **Hibrit (LightGBM 0.7 + MLP 0.3)** | **0.849** | **0.133** |
+
+**Bulgu:** Kazancın çoğu model türünden değil **özellik mühendisliğinden** geldi. Aynı özelliklerle sinir ağı da
+0.804'ten 0.829'a çıktı. Tekrarlayan katmanlı GRU'lar bu veride 1–2 epoch sonra hastaları ezberlemeye başlıyor;
+özellikler geçmişi zaten özetlediği için düz bir sinir ağı daha iyi genelliyor.
+
+### GRU v3 eğitimi (`scripts/train_v3.py`)
 
 | Parametre | Değer |
 |-----------|-------|
@@ -404,7 +439,8 @@ py -3.10 scripts/baseline_lightgbm.py           # aynı veride LightGBM karşıl
 | **v24 (56 özellik)** | 0.9997 | PCT, CRP, Presepsin gibi 22 biyobelirteç **sentetikti** ve etiketi ele veriyordu. | Bu sütunlar modelden çıkarıldı |
 | **Optimized v1** | 0.809 | Eksikler medyanla dolduruldu. Labların %90+'ı eksik olduğu için model değeri değil “ölçülmüş mü” bilgisini öğrendi: **düşük laktat riski artırıyordu**, septik hastaya %7 veriyordu. | İleri doldurma + açık ölçüm maskeleri |
 | **v3 (ilk deneme)** | 0.808 | Eğitim AUC 0.92, validasyon 0.75: `HospAdmTime` ile hasta ezberleniyordu. | `HospAdmTime` çıkarıldı, gürültü + L2 eklendi |
-| **v3** | 0.806 | — | Klinik tutarlılık testini geçiyor, kalibre |
+| **v3** | 0.806 | Model son 6 saatin ham değerlerini görüyor; eğilimi kendisi çıkarmak zorunda | Zaman serisi özellikleri |
+| **v4 (hibrit)** | **0.847** | — | Özellik mühendisliği + sinir ağı/LightGBM birleşimi, saf NumPy ağaçlar |
 
 **Ana ders:** Daha yüksek AUC her zaman daha iyi model demek değildir. 0.88'lik model, görmediği
 hastada 0.81'lik modelden daha iyi değildi. Doğru değerlendirme yöntemi metrik kadar önemlidir.
@@ -413,19 +449,19 @@ hastada 0.81'lik modelden daha iyi değildi. Doğru değerlendirme yöntemi metr
 
 ## 🗺️ Yol Haritası (6 hafta)
 
-Mevcut sistem çalışan bir **başlangıç noktasıdır**. 7 farklı mimari (GRU, LSTM, attention, LightGBM…) hasta bazlı
-değerlendirmede 0.80–0.81'de toplanıyor. Bu yüzden plan önce değerlendirme ve özelliklere odaklanır:
+İlk 6 haftalık planın **özellik mühendisliği, uzun pencere ve topluluk (ensemble)** adımları yapıldı:
+ROC-AUC 0.806 → **0.847** (hedef 0.83–0.85). Kalan adımlar:
 
 | Hafta | Konu | Ana teknikler |
 |-------|------|---------------|
 | 1 | Değerlendirme altyapısı | GroupKFold, PhysioNet Utility Score, qSOFA/NEWS2 karşılaştırması |
-| 2 | Özellik mühendisliği | Ölçümden geçen süre, 6/12/24 saatlik trendler, SOFA, şok indeksi |
-| 3 | Mimari | 12–48 saatlik pencere, GRU-D, TCN, Transformer, Optuna |
-| 4 | Kayıp ve topluluk | Focal / Utility kaybı, GRU + LightGBM ensemble, kalibrasyon |
+| ✅ 2 | Özellik mühendisliği | Ölçümden geçen süre, 6/24 saatlik ve yatıştan bu yana trendler, SOFA, şok indeksi — **yapıldı** |
+| ◐ 3 | Mimari | 24 saatlik pencere GRU denendi — **yapıldı**; GRU-D, TCN, Transformer, Optuna kaldı |
+| ✅ 4 | Topluluk | LightGBM (3 seed) + sinir ağı birleşimi, kalibrasyon — **yapıldı** |
 | 5 | Açıklanabilirlik | SHAP, Integrated Gradients, Deep Ensembles, conformal prediction |
 | 6 | Dış doğrulama ve rapor | Hastane A → B testi, alt grup analizi, pytest, Docker |
 
-**Hedef:** ROC-AUC 0.83–0.85, Utility ≥ 0.30 (PhysioNet 2019 kazananı: 0.36).
+**Hedef:** ROC-AUC 0.83–0.85 ✅ (0.847) · Utility ≥ 0.30 (PhysioNet 2019 kazananı: 0.36) — ölçülmedi.
 
 Ayrıntılar: [docs/PROJE_PLANI_6_HAFTA.md](docs/PROJE_PLANI_6_HAFTA.md) · Mimari açıklaması: [docs/MIMARI_ACIKLAMA.md](docs/MIMARI_ACIKLAMA.md)
 
@@ -441,12 +477,17 @@ Ayrıntılar: [docs/PROJE_PLANI_6_HAFTA.md](docs/PROJE_PLANI_6_HAFTA.md) · Mima
 ├── db.py                       # SQLite şeması, taşıma, sorgular, denetim kaydı
 ├── ml_service.py               # Model yükleme ve tahmin
 ├── config.py                   # Model seçimi, eşikler, risk seviyeleri
-├── features.py                 # v3 özellik mühendisliği (eğitim ve uygulama ortak)
+├── features.py                 # v3 özellikleri (ileri doldurma + ölçüm maskeleri)
+├── features_v4.py              # v4 zaman serisi özellikleri (eğitim ve uygulama ortak)
+├── gbm_numpy.py                # LightGBM ağaçlarını saf NumPy ile çalıştırır
 ├── reliability.py              # Güvenilirlik skoru, MC-Dropout
 ├── index.html / script.js / style.css   # Uygulama arayüzü
 ├── login.html / login.js       # Giriş ekranı
 │
 ├── scripts/
+│   ├── train_hybrid.py         # v4 hibrit model: eğitim, kalibrasyon, tek seferlik test
+│   ├── hasta_bazli_test.py     # Uygulama karar mantığıyla hasta bazlı test
+│   ├── experiments/            # Optimizasyon deneyleri (GRU pencere, MLP, LightGBM ayarı)
 │   ├── train_v3.py             # v3 eğitimi + kalibrasyon + değerlendirme
 │   ├── baseline_lightgbm.py    # Karşılaştırma modeli
 │   ├── fit_calibration.py      # Eski model için kalibrasyon
@@ -454,7 +495,8 @@ Ayrıntılar: [docs/PROJE_PLANI_6_HAFTA.md](docs/PROJE_PLANI_6_HAFTA.md) · Mima
 │   └── veri_seti_disa_aktar.py # Uygulamada biriken etiketli veriyi CSV'ye aktarır
 │
 ├── models/
-│   ├── v3/                     # Aktif model, dönüştürücü, kalibratör, grafikler
+│   ├── v4/                     # Aktif hibrit model: ağaçlar (JSON), sinir ağı, ölçekleyici, kalibratör
+│   ├── v3/                     # Önceki GRU modeli (SEPSIS_MODEL=v3)
 │   └── optimized/              # Eski model (SEPSIS_MODEL=legacy ile seçilir)
 │
 ├── data/train.csv              # PhysioNet 2019 (1,55M satır, 40.336 hasta)

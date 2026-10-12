@@ -19,12 +19,13 @@ from tensorflow.keras import layers
 import tensorflow.keras.backend as K
 
 from config import (MODEL_PATH, PREPROCESSING_DIR, OPTIMAL_THRESHOLD, RISK_LEVELS,
-                    CLINICAL_OVERRIDES, FEATURE_SET)
+                    CLINICAL_OVERRIDES, FEATURE_SET, MODEL_INFO)
 from features import build_hourly_features, make_windows
 from reliability import (ReliabilityEstimator, apply_clinical_disagreement, mc_dropout_predict,
                          normalize_inputs)
 
 WINDOW_SIZE = 6
+MAX_HOUR = 2000          # v4 saatlik ızgara için üst sınır (PhysioNet'te en uzun yatış ~336 saat)
 
 # Modelin girdisinde kullanılmayan (eğitimde hariç tutulan) alanlar — yalnızca kayıt amaçlı
 MODEL_UNUSED_FIELDS = ['PCT', 'CRP', 'Presepsin', 'IL6']
@@ -36,6 +37,9 @@ ohe = None
 transformer = None
 feature_stats = {}
 estimator = None
+gbm = None               # v4: LightGBM ağaçları (saf NumPy)
+v4_scaler = None         # v4: sinir ağı girdisi ölçekleyici
+gbm_weight = 0.0         # v4: birleşimde LightGBM ağırlığı
 numerical_columns = []
 categorical_columns = []
 
@@ -153,7 +157,9 @@ def load_model_and_preprocessing():
             model = keras.models.load_model(MODEL_PATH)
         print("  [OK] Model basariyla yuklendi")
 
-        if FEATURE_SET == 'v3':
+        if FEATURE_SET == 'v4':
+            _load_v4_components()
+        elif FEATURE_SET == 'v3':
             _load_v3_preprocessing()
         else:
             _load_legacy_preprocessing()
@@ -173,6 +179,22 @@ def load_model_and_preprocessing():
         print(f"\n[FAIL] HATA: Model yuklenemedi! {e}")
         traceback.print_exc()
         return False
+
+
+def _load_v4_components():
+    """v4 hibrit: sinir ağı (yüklendi) + LightGBM ağaçları (NumPy) + ölçekleyici"""
+    global gbm, v4_scaler, gbm_weight, feature_stats
+    from gbm_numpy import NumpyGBM
+    directory = os.path.dirname(MODEL_PATH)
+    print("\n[2/2] v4 hibrit bilesenleri yukleniyor...")
+    gbm = NumpyGBM.load(os.path.join(directory, 'trees.json'))
+    with open(os.path.join(directory, 'scaler.pkl'), 'rb') as f:
+        v4_scaler = pickle.load(f)
+    gbm_weight = float(MODEL_INFO.get('ensemble_weight_lightgbm', 0.5))
+    feature_stats = v4_scaler.clinical_stats()
+    n_trees = sum(len(m.trees) for m in getattr(gbm, 'members', [gbm]))
+    print(f"  [OK] LightGBM {n_trees} agac (NumPy) + sinir agi · {len(v4_scaler.columns)} ozellik · "
+          f"agirlik {gbm_weight:.2f}/{1 - gbm_weight:.2f}")
 
 
 def _load_v3_preprocessing():
@@ -206,13 +228,22 @@ def _load_legacy_preprocessing():
 
 
 def warm_up():
+    if FEATURE_SET == 'v4':
+        rows = [{'HR': 80, 'Hour': h} for h in range(3)]
+        _predict_v4(rows)
+        return
     dummy = np.zeros((1, WINDOW_SIZE, model.input_shape[-1]), dtype=np.float32)
     model.predict(dummy, verbose=0)
     mc_dropout_predict(model, dummy)
 
 
 def is_ready():
-    preprocessing = (transformer is not None) if FEATURE_SET == 'v3' else (imputer is not None and scaler is not None)
+    if FEATURE_SET == 'v4':
+        preprocessing = gbm is not None and v4_scaler is not None
+    elif FEATURE_SET == 'v3':
+        preprocessing = transformer is not None
+    else:
+        preprocessing = imputer is not None and scaler is not None
     return model is not None and preprocessing
 
 
@@ -300,6 +331,18 @@ def get_risk_level(prediction, vital_signs_dict=None):
     return RISK_LEVELS['very_low']['label'], RISK_LEVELS['very_low']['color'], flags
 
 
+def _predict_v4(grid_rows):
+    """Saatlik ızgaradan son saatin hibrit tahmini ve MC-Dropout örnekleri."""
+    from features_v4 import build_v4
+    feats = build_v4(pd.DataFrame(grid_rows)).iloc[[-1]]
+    p_gbm = float(gbm.predict(feats.to_numpy())[0])
+    x = v4_scaler.transform(feats)
+    p_mlp = float(model.predict(x, verbose=0).reshape(-1)[0])
+    prediction = gbm_weight * p_gbm + (1 - gbm_weight) * p_mlp
+    mc_samples = gbm_weight * p_gbm + (1 - gbm_weight) * mc_dropout_predict(model, x)
+    return prediction, mc_samples, {'lightgbm': p_gbm, 'neural_net': p_mlp, 'weight_lightgbm': gbm_weight}
+
+
 def assess(previous_hours, hour, vital_signs, demographics, transform_notes=None):
     """
     Bir saatlik yeni ölçüm için tahmin + güvenilirlik.
@@ -317,15 +360,26 @@ def assess(previous_hours, hour, vital_signs, demographics, transform_notes=None
     current.update(demographics, Hour=hour)
     history.append(current)
 
-    X_seq, real_hours, real_rows = build_sequence(history)
-    prediction = float(model.predict(X_seq, verbose=0).reshape(-1)[0])
-    mc_samples = mc_dropout_predict(model, X_seq)
+    components = None
+    if FEATURE_SET == 'v4':
+        # Saatlik ızgara: girilmeyen saatler boş satır (eğitim verisinde her satır bir saat)
+        entered = {r['Hour']: r for r in history}
+        grid = [entered.get(h, dict(demographics, Hour=h)) for h in range(0, hour + 1)]
+        prediction, mc_samples, components = _predict_v4(grid)
+        real_rows = [entered[h] for h in range(max(0, hour - WINDOW_SIZE + 1), hour + 1) if h in entered]
+        real_hours = len(real_rows)
+    else:
+        X_seq, real_hours, real_rows = build_sequence(history)
+        prediction = float(model.predict(X_seq, verbose=0).reshape(-1)[0])
+        mc_samples = mc_dropout_predict(model, X_seq)
 
     assessment = estimator.assess(real_rows, real_hours, WINDOW_SIZE, mc_samples, transform_notes)
     if 'Age' not in demographics:
         assessment['reasons'].append('Yaş girilmemiş; eğitim verisinin medyan yaşı kullanıldı.')
     assessment['calibrated_probability'] = estimator.calibrate(prediction)
     assessment['unused_fields'] = [f for f in MODEL_UNUSED_FIELDS if f in vital_signs]
+    if components:
+        assessment['components_model'] = components
 
     if assessment['sufficient_data']:
         risk_text, risk_color, red_flags = get_risk_level(prediction, current)

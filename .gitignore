@@ -186,6 +186,7 @@ models/gru_v24_56features/*
 *.pkl
 !data/processed/*.pkl
 !models/v3/*.pkl
+!models/v4/*.pkl
 !models/optimized/calibrator.pkl
 logs/
 *.log
@@ -198,3 +199,7 @@ tmp/
 
 # Gemini artifacts (user's workspace metadata)
 .gemini/
+
+# Optimizasyon deneylerinin ara çıktıları (tahminler, deneme modelleri)
+models/experiments/
+models/*.log

@@ -698,6 +698,7 @@ function renderAssessment(res) {
                 </div>
                 <div class="risk-sub">
                     ${mc ? `Belirsizlik aralığı (%90): <b>${pct(mc.p05, 0)} – ${pct(mc.p95, 0)}</b><br>` : ''}
+                    ${rel && rel.components_model ? `Model dalları: LightGBM <b>${pct(rel.components_model.lightgbm)}</b> · sinir ağı <b>${pct(rel.components_model.neural_net)}</b><br>` : ''}
                     ${rel && rel.calibrated_probability != null ? `Kalibre olasılık: <b>${pct(rel.calibrated_probability)}</b> — bu skordaki test hastalarının gözlenen sepsis oranı` : ''}
                 </div>
             </div>`;
@@ -1361,8 +1362,8 @@ async function loadModelInfo() {
                 ${op ? metric(`Duyarlılık @${modelInfo.threshold}`, pct(op.sensitivity), grade(op.sensitivity, 0.8, 0.6)) : ''}
                 ${op ? metric(`Özgüllük @${modelInfo.threshold}`, pct(op.specificity), grade(op.specificity, 0.9, 0.7)) : ''}
                 ${t.ece_raw != null ? metric('ECE (ham → kalibre)', `${t.ece_raw.toFixed(3)} → ${t.ece_calibrated.toFixed(3)}`, 'good') : ''}
-                ${metric('Parametre', m.params.toLocaleString('tr-TR'))}
-                ${metric('Pencere × özellik', `${modelInfo.window_size} × ${modelInfo.features.length}`)}
+                ${modelInfo.feature_set === 'v4' ? metric('Özellik', modelInfo.features.length) : metric('Pencere × özellik', `${modelInfo.window_size} × ${modelInfo.features.length}`)}
+                ${m.n_trees ? metric('Ağaç / ağırlık', `${m.n_trees} / ${(m.params || 0).toLocaleString('tr-TR')}`) : metric('Parametre', (m.params || 0).toLocaleString('tr-TR'))}
                 ${st.empty_input ? metric('Boş girdiye skor', pct(st.empty_input.raw), 'warn') : ''}
             </div>
         </div>
@@ -1425,18 +1426,27 @@ function renderPatientLevel(st) {
 function renderComparison(st, t) {
     if (!t.roc_auc) return '';
     const lg = st.lightgbm_baseline;
-    const rows = [
+    const c = st.components_test;
+    const rows = c ? [
+        ['Hibrit v4 (aktif)', 'Hasta bazlı', c.hybrid.roc_auc, c.hybrid.pr_auc, `LightGBM ${Math.round(st.ensemble_weight_lightgbm * 100)}% + sinir ağı ${Math.round((1 - st.ensemble_weight_lightgbm) * 100)}%`],
+        ['└ LightGBM dalı', 'Hasta bazlı', c.lightgbm.roc_auc, c.lightgbm.pr_auc, 'Zaman serisi özellikleri, 3 seed'],
+        ['└ Sinir ağı dalı (MLP)', 'Hasta bazlı', c.mlp.roc_auc, c.mlp.pr_auc, 'Aynı özellikler, 3 gizli katman'],
+        ['GRU v3', 'Hasta bazlı', c.gru_v3.roc_auc, c.gru_v3.pr_auc, 'Son 6 saatin ham değerleri'],
+    ] : [
         ['GRU v3 (aktif)', 'Hasta bazlı', t.roc_auc, t.pr_auc, 'İleri doldurma + ölçüm maskeleri'],
         lg ? ['LightGBM (karşılaştırma)', 'Hasta bazlı, aynı hastalar', lg.roc_auc, lg.pr_auc, 'Aynı özellikler, ağaç tabanlı'] : null,
+    ];
+    rows.push(
         ['Optimized v1 (eski)', 'Hasta bazlı', 0.809, 0.089, 'Medyan doldurma; vital bulgulara tepkisiz'],
         ['GRU v23 (ilk sürüm)', 'Rastgele pencere', 0.880, 0.180, 'Aynı hasta hem eğitimde hem testte → iyimser'],
-    ].filter(Boolean);
+    );
+    const shown = rows.filter(Boolean);
     return `
         <div class="card">
             <div class="card-head"><h2>Model karşılaştırması</h2></div>
             <div class="table-wrap"><table class="table">
                 <thead><tr><th>Model</th><th>Test bölmesi</th><th>ROC-AUC</th><th>PR-AUC</th><th>Not</th></tr></thead>
-                <tbody>${rows.map(r => `<tr><td><strong>${r[0]}</strong></td><td>${r[1]}</td><td class="num">${r[2].toFixed(3)}</td><td class="num">${r[3].toFixed(3)}</td><td class="muted small">${r[4]}</td></tr>`).join('')}</tbody>
+                <tbody>${shown.map(r => `<tr><td><strong>${r[0]}</strong></td><td>${r[1]}</td><td class="num">${r[2].toFixed(3)}</td><td class="num">${r[3].toFixed(3)}</td><td class="muted small">${r[4]}</td></tr>`).join('')}</tbody>
             </table></div>
             <div class="prose"><p>İlk sürümün 0.88'i, veri saat saat rastgele bölündüğü için aynı hastanın bir saati eğitimde, sonraki saati testte bulunarak elde edildi. Yaş + cinsiyet + yatış süresi hastaların %93'ünü tek başına tanımladığından model hastayı “tanıyabiliyordu”. Hasta bazlı bölmede hiçbir test hastası eğitimde görülmez; gerçekçi değer budur.</p></div>
         </div>`;

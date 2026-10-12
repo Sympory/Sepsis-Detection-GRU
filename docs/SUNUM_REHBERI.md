@@ -26,17 +26,19 @@
 - Zorluklar: Sepsis oranı sadece **%1.8**. Laboratuvar değerlerinin **%90'dan fazlası eksik**.
 
 ### 3. Model (1,5 dk)
-- **GRU**: Zaman serisi için tekrarlayan sinir ağı; LSTM'in daha sade hali.
-- Girdi: son **6 saat × 71 özellik** (34 değer + 34 “ölçüldü mü” maskesi + yaş, cinsiyet, saat).
-- Bidirectional GRU(64) → GRU(64) → Dense(32) → Sigmoid. Yaklaşık 92 bin parametre.
-- Ezberlemeye karşı Dropout 0.4, L2 ve girdi gürültüsü.
+- **Başlangıç:** GRU (zaman serisi için tekrarlayan sinir ağı), son 6 saatin ham değerleri → ROC-AUC 0.806.
+- **Şimdi: hibrit model.** Hastanın tüm geçmişinden **281 zaman serisi özelliği** (24 saatlik eğilim, son ölçümden
+  geçen süre, SIRS/SOFA, şok indeksi) → **sinir ağı (MLP)** + **LightGBM**, ağırlıklı ortalama → **0.847**.
+- Sinir ağı: Dense 256 → 128 → 64 → Sigmoid; BatchNorm, Dropout 0.5, L2, girdi gürültüsü. ~115 bin ağırlık.
+- LightGBM ağaçları uygulamada saf NumPy ile çalışıyor (Windows'ta TensorFlow ile DLL çakışması yaşanmasın diye).
 
 ### 4. Canlı demo (3 dk)
 0. **Roller** (hocanın istediği): önce **hemşire** olarak girin → veri girin; alarm onaylayamadığını gösterin.
    Çıkış yapıp **doktor** olarak girin → Alarmlar'da not yazıp onaylayın, bir hastayı taburcu edin (arşive düşer).
    **Yönetici** olarak girin → Kullanıcılar (rol tablosu), Denetim kayıtları (kim ne yaptı), Veritabanı (tablolar ve ilişkiler).
 1. **Genel Bakış**: hastalar riske göre sıralı; güvenilirlik sütunu.
-2. **Mehmet Kaya (kötüleşen)**: risk trendi 12 saatte %1.5'ten %37.6'ya çıkıyor. Gölgeli alan belirsizlik.
+2. **Mehmet Kaya (kötüleşen)**: risk trendi 12 saatte %2'den %42'ye çıkıyor, 22. saatte eşiği geçiyor. Gölgeli alan belirsizlik;
+   panelde LightGBM ve sinir ağı dallarının skorları ayrı görünüyor.
    Sağ panel: skor, güvenilirlik halkası, “Neden?” listesi.
 3. **Zeynep Arslan (eksik veri)**: sadece 2 vital → **“Değerlendirilemedi”**.
    *“İlk sürüm burada ‘hasta değil’ diyordu; boş alanları ortalama değerle doldurduğu için.”*
@@ -57,7 +59,9 @@
 - İlk model **0.88 AUC** gösteriyordu ama veri **rastgele** bölünmüştü. Aynı hasta hem eğitimde hem testteydi.
 - Hasta bazlı bölmede gerçek değer **~0.81**.
 - Eski model septik hastaya %7 veriyordu: “değer ne?” yerine “ölçülmüş mü?” sorusunu öğrenmişti.
-- Çözüm: ileri doldurma + ölçüm maskeleri → septik %41, normal %2.
+- Çözüm 1: ileri doldurma + ölçüm maskeleri → septik tabloya artık yüksek risk.
+- Çözüm 2: eğilimleri açıkça hesaplayan özellikler + sinir ağı/LightGBM birleşimi → 0.806 → **0.847**.
+  Kazancın çoğu model türünden değil **özellik mühendisliğinden** geldi.
 - **Ders:** Yüksek metrik ≠ iyi model. Değerlendirme yöntemi metrik kadar önemli.
 
 ### 6. Önümüzdeki 6 hafta (1,5 dk) — *“bitmiş proje değil, sağlam bir başlangıç”*
@@ -100,13 +104,13 @@ Daha az parametre (2 kapı ve 3 kapı), daha hızlı eğitim, bu boyutta veride 
 PhysioNet 2019 yarışmasında saatlik tahmin zor bir problem. Hasta bazlı dürüst değerlendirmede bu bant
 literatürle uyumlu. Aynı veride LightGBM 0.811 aldı; model veriyle sınırlı.
 
-**PR-AUC neden 0.095?**
-Pozitif oran %1.8. Rastgele tahminin PR-AUC'si 0.018, model bunun ~5 katı. Dengesiz veride
+**PR-AUC neden 0.132?**
+Pozitif oran %1.8. Rastgele tahminin PR-AUC'si 0.018, model bunun ~7 katı. Dengesiz veride
 PR-AUC, ROC-AUC'den daha zorlayıcıdır.
 
-**Duyarlılık neden %26?**
-Varsayılan eşik (0.35) yanlış alarmı az tutmak için seçildi. Tarama eşiğinde (0.032) duyarlılık %81 olur,
-özgüllük %64'e düşer. Bu bir klinik tercih; iki seçenek de model sayfasında gösteriliyor.
+**Duyarlılık neden %31?**
+Varsayılan eşik (0.33) yanlış alarmı az tutmak için seçildi. Tarama eşiğinde (0.066) duyarlılık %81 olur,
+özgüllük %75'e düşer (ilk modelde %64'tü). Bu bir klinik tercih; iki seçenek de model sayfasında gösteriliyor.
 
 **Güvenilirlik skoru nasıl hesaplanıyor?**
 Dört bileşen: veri tamlığı (%45), 6 saatlik pencerenin kapsamı (%20), MC-Dropout ile model kararlılığı (%25),
@@ -117,7 +121,7 @@ Tahmin sırasında Dropout'u açık bırakıp modeli 30 kez çalıştırıyoruz.
 emin, dağınıksa kararsız (Gal ve Ghahramani, 2016). Testte kararlı tahminlerin doğruluğu %61, kararsızların %45.
 
 **Kalibrasyon ne işe yarıyor?**
-Ham skor %37 olsa bile bu, hastaların %37'sinin sepsis olduğu anlamına gelmez. İzotonik regresyon skoru
+Ham skor %42 olsa bile bu, hastaların %42'sinin sepsis olduğu anlamına gelmez. İzotonik regresyon skoru
 gerçek gözlenen orana çeviriyor (hata 0.040'tan 0.001'e düştü).
 
 **Python'da neler kullandın?**

@@ -51,18 +51,23 @@ Bu belge üç soruyu yanıtlar:
 | 6 | Enhanced v2 | Bi-GRU(96) + Bi-GRU(64) + çok başlı attention + 12 türetilmiş özellik | 0.804 | 0.086 | 262 bin parametre, 92 dk eğitim, kazanç yok |
 | 7 | MATLAB Bi-LSTM | Bi-LSTM(96) + Bi-LSTM(64) + self-attention | 0.806 | 0.089 | LSTM de aynı bantta |
 | 8 | v3 ilk deneme | İleri doldurma + maskeler + HospAdmTime | 0.808 | 0.106 | Eğitim 0.92 / doğrulama 0.75: **hasta ezberleme** |
-| 9 | **GRU v3 (aktif)** | HospAdmTime çıkarıldı, gürültü + L2 | **0.806** | **0.095** | ✅ Klinik tutarlılık testini geçen ilk model |
+| 9 | GRU v3 | HospAdmTime çıkarıldı, gürültü + L2 | 0.806 | 0.095 | ✅ Klinik tutarlılık testini geçen ilk model |
 | 10 | LightGBM | Aynı özellikler, son saat + 6 saatlik değişim | 0.811 | 0.100 | Ağaç modeli GRU ile başa baş |
+| 11 | GRU, 24 saat pencere | Uzun geriye bakış | 0.813* | 0.101* | Küçük kazanç, hızlı ezberleme |
+| 12 | MLP + 257 zaman serisi özelliği | Eğilimler açıkça hesaplandı | 0.829* | 0.120* | Sinir ağı da belirgin iyileşti |
+| 13 | LightGBM + 281 özellik | + yatıştan bu yana özellikler, ayar taraması | 0.850* | 0.133* | En güçlü tek model |
+| 14 | **Hibrit v4 (aktif)** | 0.7 × LightGBM + 0.3 × MLP, kalibrasyon | **0.847** | **0.132** | ✅ Test, tek seferlik |
+
+\* validasyon; diğerleri test. Hibrit model için test bir kez kullanıldı.
 
 **Ana bulgu:** 3–10 numaralı deneylerde 7 farklı mimari (GRU, Bi-GRU, attention, LSTM, LightGBM, MATLAB)
-hasta bazlı değerlendirmede **0.80–0.81 bandında toplanıyor**. Mimari değiştirmek tek başına yetmiyor.
-Sınır **veride ve problem tanımında**. 6 haftalık plan bu yüzden önce değerlendirme ve özelliklere odaklanıyor.
+hasta bazlı değerlendirmede **0.80–0.81 bandında toplanıyordu**. Mimari değiştirmek tek başına yetmedi.
+11–14: **özellik mühendisliği** (eğilim, son ölçümden geçen süre, klinik skorlar) bu tavanı kırdı → **0.847**.
+### Neden 0.80'de takılıyorduk? (hipotezler ve sonuçları)
 
-### Neden 0.80'de takılıyoruz? (hipotezler — plan bunları test eder)
-
-1. **Pencere kısa:** 6 saat, sepsise giden yavaş kötüleşmeyi görmek için yetersiz olabilir (12–24 saat denenecek).
-2. **Trend bilgisi zayıf:** Model “6 saattir düşen tansiyon” gibi eğilimleri ham değerlerden kendisi çıkarmak zorunda.
-3. **Ölçüm zamanı bilgisi yok:** “Laktat 10 saat önce ölçülmüş” ile “şimdi ölçülmüş” ayırt edilmiyor.
+1. **Pencere kısa:** 24 saatlik GRU denendi → küçük kazanç (0.804 → 0.813). ◐
+2. **Trend bilgisi zayıf:** Eğilimler açıkça hesaplandı → en büyük kazanç (→ 0.85). ✅
+3. **Ölçüm zamanı bilgisi yok:** “Son ölçümden geçen süre” eklendi → en önemli özellikler arasında. ✅
 4. **Etiket gürültüsü:** Sepsis etiketi bir kural (Sepsis-3) ile otomatik konmuş; bazı “negatifler” tanı almamış vakalar olabilir.
 5. **Değerlendirme saatlik:** Saatlik AUC, klinik faydayı tam yansıtmaz (erken uyarı ne kadar erken?).
 
@@ -83,17 +88,18 @@ Sınır **veride ve problem tanımında**. 6 haftalık plan bu yüzden önce de�
 **Yorum:**
 - Challenge'da en başarılı yöntemlerin önemli bir kısmı **gradient boosting** (XGBoost, LightGBM) ve elle türetilmiş zaman özellikleri kullandı. Derin öğrenme modelleri tek başına bunları geçemedi. Bizim LightGBM ≈ GRU sonucumuz bununla tutarlı.
 - Kazanan yaklaşımlardan biri (Morrill ve ark.) zaman serisinden **signature / pencere istatistikleri** çıkarıp gradient boosting'e verdi.
-- Bizim 0.806 değerimiz literatür bandının **alt ucunda**. Hedef, 6 haftada **0.83–0.85 ROC-AUC** ve **Utility ≥ 0.30**.
+- İlk 0.806 değerimiz literatür bandının alt ucundaydı; hibrit model **0.847** ile bandın üst kısmında.
+  Kalan hedef: **Utility ≥ 0.30** ölçümü ve dış doğrulama.
 
 ---
 
 ## 4. Model yeniden eğitilebilir mi?
 
-**Evet, ve kolay.** Tüm eğitim tek komutla, GPU'da yaklaşık 3 dakika sürüyor:
+**Evet, ve kolay.** Tüm eğitim tek komutla yapılıyor:
 
 ```bash
-py -3.10 scripts/train_v3.py --epochs 25 --pos-weight 5 --output models/v3_deneme
-py -3.10 scripts/baseline_lightgbm.py
+py -3.10 scripts/train_hybrid.py                 # aktif hibrit model, ~8 dk → models/v4/
+py -3.10 scripts/train_v3.py --epochs 25          # önceki GRU modeli, ~3 dk → models/v3/
 ```
 
 Çıktılar (`models/<klasör>/`): model, kalibratör, test metrikleri, klinik tutarlılık testi, ROC/PR/kalibrasyon grafikleri.
@@ -186,14 +192,14 @@ Eğitim süresinin kısa olması, 6 hafta içinde **yüzlerce deney** yapılabil
 
 ## 6. Hedefler
 
-| Metrik | Şu an (v3) | 6 hafta hedefi | Literatür |
-|--------|-----------|----------------|-----------|
-| ROC-AUC (hasta bazlı) | 0.806 | **0.83 – 0.85** | ~0.80 – 0.85 |
-| PR-AUC | 0.095 | **0.12+** | — |
-| Utility Score | ölçülmedi | **≥ 0.30** | kazanan 0.36 |
-| Duyarlılık (yanlış alarm ≤ %10 iken) | %26 | **%40+** | — |
-| Açıklanabilirlik | yok | tahmin başına SHAP | — |
-| Dış doğrulama | yok | A → B testi | — |
+| Metrik | Başlangıç (v3) | Şu an (v4 hibrit) | Hedef | Literatür |
+|--------|---------------|-------------------|-------|-----------|
+| ROC-AUC (hasta bazlı) | 0.806 | **0.847** ✅ | 0.83 – 0.85 | ~0.80 – 0.85 |
+| PR-AUC | 0.095 | **0.132** ✅ | 0.12+ | — |
+| Utility Score | ölçülmedi | ölçülmedi | ≥ 0.30 | kazanan 0.36 |
+| Özgüllük (%80 duyarlılıkta) | %64 | **%75** | — | — |
+| Açıklanabilirlik | yok | yok | tahmin başına SHAP | — |
+| Dış doğrulama | yok | yok | A → B testi | — |
 
 ---
 

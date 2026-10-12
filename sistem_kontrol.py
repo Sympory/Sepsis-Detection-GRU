@@ -122,6 +122,13 @@ def main():
     check('Model septik hastaya daha yüksek skor veriyor', r_sep['prediction'] > r_norm['prediction'],
           f"%{r_norm['prediction'] * 100:.1f} → %{r_sep['prediction'] * 100:.1f}")
     check('Yüksek riskte alarm açıldı', r_sep.get('alarm_raised'))
+    if config.FEATURE_SET == 'v4':
+        cm = r_sep['reliability'].get('components_model') or {}
+        check('Hibrit model: iki dal da çalışıyor', 'lightgbm' in cm and 'neural_net' in cm,
+              f"LightGBM %{cm.get('lightgbm', 0) * 100:.1f} · sinir ağı %{cm.get('neural_net', 0) * 100:.1f}")
+        r_gap = nurse.post(f'/api/patients/{pid2}/hourly-data',
+                           json={'hour': 9, 'vital_signs': dict(septic, Temp=39.1)}).get_json()
+        check('Atlanan saatlerle tahmin (saatlik ızgara)', r_gap.get('success'), f"saat 2 → 9, skor %{r_gap['prediction'] * 100:.1f}")
     detail = doctor.get(f'/api/patients/{pid2}').get_json()
     check('Ölçümler normalize tablodan okunuyor', detail['hourly_data'][0]['vital_signs'].get('Lactate') == 4.5,
           f"giren: {detail['hourly_data'][0]['entered_by']}")
