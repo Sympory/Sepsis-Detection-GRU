@@ -1,106 +1,57 @@
 <!DOCTYPE html>
 <html lang="tr">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Giriş - Sepsis Erken Tespit Sistemi</title>
-    <link rel="stylesheet" href="login_style.css">
+    <title>SepsisAI — Giriş</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%230f766e'/><path d='M6 17h5l2-5 4 10 2-5h7' stroke='white' stroke-width='2.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+    <script>
+        try { const t = localStorage.getItem('sepsis-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) { }
+    </script>
 </head>
-
-<body>
-    <div class="login-container">
-        <div class="login-box">
-            <div class="logo-section">
-                <div class="logo-icon">🏥</div>
-                <h1>Sepsis Erken Tespit Sistemi</h1>
-                <p class="subtitle">Y
-
-                    oğun Bakım İzleme Platformu</p>
+<body class="login-page">
+    <main class="login-wrap">
+        <div class="login-card">
+            <div class="brand login-brand">
+                <div class="brand-mark">
+                    <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M5 17h5l2.5-6 4.5 12 2.5-6H27" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div>
+                    <div class="brand-name">SepsisAI</div>
+                    <div class="brand-sub">YBÜ Karar Destek</div>
+                </div>
             </div>
 
-            <form id="loginForm" class="login-form">
-                <div id="errorMessage" class="error-message" style="display: none;"></div>
+            <h1>Giriş yap</h1>
+            <p class="muted small">Yoğun bakım personeli için sepsis erken uyarı sistemi</p>
 
-                <div class="form-group">
-                    <label for="hospital">Hastane</label>
-                    <select id="hospital" name="hospital" required>
-                        <option value="">Hastane seçiniz...</option>
-                        <!-- Will be populated dynamically -->
-                    </select>
-                </div>
+            <div class="banner banner-warn" id="login-notice" hidden></div>
+            <div class="banner banner-danger" id="login-error" hidden></div>
 
-                <div class="form-group">
-                    <label for="username">Kullanıcı Adı</label>
-                    <input type="text" id="username" name="username" required placeholder="Kullanıcı adınızı girin"
-                        autocomplete="username">
-                </div>
-
-                <div class="form-group">
-                    <label for="password">Şifre</label>
-                    <div class="password-input">
-                        <input type="password" id="password" name="password" required placeholder="Şifrenizi girin"
-                            autocomplete="current-password">
-                        <button type="button" class="toggle-password" onclick="togglePassword()">
-                            <span id="eyeIcon">👁️</span>
-                        </button>
-                    </div>
-                </div>
-
-                <div class="form-options">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="rememberMe" name="rememberMe">
-                        Beni hatırla
-                    </label>
-                    <a href="#" class="forgot-password">Şifremi unuttum?</a>
-                </div>
-
-                <button type="submit" class="login-button" id="loginButton">
-                    <span id="buttonText">Giriş Yap</span>
-                    <span id="buttonLoader" class="loader" style="display: none;"></span>
-                </button>
+            <form id="login-form" novalidate>
+                <label class="field">
+                    <span class="field-label">Kullanıcı adı</span>
+                    <input type="text" id="username" autocomplete="username" required autofocus>
+                </label>
+                <label class="field">
+                    <span class="field-label">Şifre</span>
+                    <input type="password" id="password" autocomplete="current-password" required>
+                </label>
+                <button type="submit" class="btn btn-primary btn-lg" id="login-btn">Giriş yap</button>
             </form>
 
-            <div class="login-footer">
-                <p>© 2025 Sepsis Detection System. Tüm hakları saklıdır.</p>
-                <p class="version">v2.0.0</p>
+            <div class="demo-accounts" id="demo-accounts" hidden>
+                <div class="demo-title">Demo hesapları <span class="muted">— doldurmak için tıklayın</span></div>
+                <div id="demo-list"></div>
             </div>
-        </div>
 
-        <div class="info-panel">
-            <h2>Hoş Geldiniz</h2>
-            <div class="info-item">
-                <div class="info-icon">🎯</div>
-                <div class="info-text">
-                    <h3>Erken Tespit</h3>
-                    <p>Yapay zeka destekli sepsis risk tahmini</p>
-                </div>
-            </div>
-            <div class="info-item">
-                <div class="info-icon">⏱️</div>
-                <div class="info-text">
-                    <h3>Gerçek Zamanlı</h3>
-                    <p>Hasta bazlı saatlik izleme</p>
-                </div>
-            </div>
-            <div class="info-item">
-                <div class="info-icon">📊</div>
-                <div class="info-text">
-                    <h3>Detaylı Raporlama</h3>
-                    <p>Kapsamlı analiz ve trend görüntüleme</p>
-                </div>
-            </div>
-            <div class="info-item">
-                <div class="info-icon">🔒</div>
-                <div class="info-text">
-                    <h3>Güvenli</h3>
-                    <p>KVKK uyumlu veri koruma</p>
-                </div>
-            </div>
+            <p class="login-foot muted small">Araştırma prototipi · klinik kullanım için onaylı değildir</p>
         </div>
-    </div>
-
+    </main>
     <script src="login.js"></script>
 </body>
-
 </html>

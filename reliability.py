@@ -33,10 +33,11 @@ CORE_VITALS = ['HR', 'O2Sat', 'Temp', 'Resp', 'MAP']
 MIN_CORE_VITALS = 3
 
 # Sepsis/SOFA açısından en bilgilendirici laboratuvar değerleri
-KEY_LABS = ['Lactate', 'WBC', 'Creatinine', 'Platelets', 'Bilirubin_total', 'pH']
+# Formdaki hızlı girişle aynı 4 laboratuvar değeri
+KEY_LABS = ['Lactate', 'WBC', 'Creatinine', 'Platelets']
 
 OTHER_FEATURES = [
-    'SBP', 'DBP', 'EtCO2', 'BaseExcess', 'HCO3', 'FiO2', 'PaCO2', 'SaO2', 'AST', 'BUN',
+    'SBP', 'DBP', 'Bilirubin_total', 'pH', 'EtCO2', 'BaseExcess', 'HCO3', 'FiO2', 'PaCO2', 'SaO2', 'AST', 'BUN',
     'Alkalinephos', 'Calcium', 'Chloride', 'Bilirubin_direct', 'Glucose', 'Magnesium',
     'Phosphate', 'Potassium', 'TroponinI', 'Hct', 'Hgb', 'PTT', 'Fibrinogen',
 ]

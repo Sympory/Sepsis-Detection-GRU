@@ -2,7 +2,9 @@
 Sunum için örnek hastalar oluşturur (patients.db).
 
   py -3.10 scripts/demo_hastalari.py          # ekle (varsa atlar)
-  py -3.10 scripts/demo_hastalari.py --sil    # DEMO-* hastalarını sil
+  py -3.10 scripts/demo_hastalari.py --sil    # DEMO-* hastalarını sil (yönetici hesabıyla)
+
+Demo hesapları (hemsire, yonetici) açık olmalıdır (varsayılan).
 
 Tahminler gerçek modelle, uygulamanın kendi API'si üzerinden hesaplanır.
 Uygulama açıkken de çalıştırılabilir (sonra sayfayı yenileyin).
@@ -28,7 +30,7 @@ sys.path.insert(0, ROOT)
 def stable_hours():
     rows = []
     for h in range(1, 9):
-        v = {'HR': 76 + h % 3, 'O2Sat': 98, 'Temp': 36.7 + (h % 2) * 0.1, 'Resp': 15 + h % 2,
+        v = {'HR': 76 + h % 3, 'O2Sat': 98, 'Temp': round(36.7 + (h % 2) * 0.1, 1), 'Resp': 15 + h % 2,
              'SBP': 124 - h % 3, 'DBP': 74, 'MAP': 91}
         if h == 2:
             v.update({'Lactate': 1.1, 'WBC': 7.8, 'Creatinine': 0.9, 'Platelets': 240, 'pH': 7.41})
@@ -58,29 +60,41 @@ DEMO_PATIENTS = [
 ]
 
 
+def login(app, username, password):
+    client = app.test_client()
+    r = client.post('/api/auth/login', json={'username': username, 'password': password})
+    if r.status_code != 200:
+        sys.exit(f"Giriş başarısız ({username}): {r.get_json().get('error')}")
+    return client
+
+
 def main():
     import app as sepsis_app
-    sepsis_app.init_database()
-    client = sepsis_app.app.test_client()
-    existing = {p['patient_id']: p['id'] for p in client.get('/api/patients').get_json()['patients']}
+    import ml_service as ml
+    sepsis_app.init_app()
+
+    # Veriyi hemşire girer; kalıcı silme yalnızca yöneticinin yetkisidir
+    nurse = login(sepsis_app.app, 'hemsire', 'Hemsire123')
+    existing = {p['patient_id']: p['id'] for p in nurse.get('/api/patients?status=all').get_json()['patients']}
 
     if '--sil' in sys.argv:
+        admin = login(sepsis_app.app, 'yonetici', 'Yonetici123')
         for info, _ in DEMO_PATIENTS:
             if info['patient_id'] in existing:
-                client.delete(f"/api/patients/{existing[info['patient_id']]}")
+                admin.delete(f"/api/patients/{existing[info['patient_id']]}")
                 print(f"Silindi: {info['name']}")
         return
 
-    if not sepsis_app.load_model_and_preprocessing():
+    if not ml.load_model_and_preprocessing():
         sys.exit(1)
 
     for info, hours in DEMO_PATIENTS:
         if info['patient_id'] in existing:
             print(f"Zaten var, atlandı: {info['name']}")
             continue
-        pid = client.post('/api/patients', json=info).get_json()['patient_id']
+        pid = nurse.post('/api/patients', json=info).get_json()['patient_id']
         for hour, vitals in hours:
-            r = client.post(f'/api/patients/{pid}/hourly-data', json={'hour': hour, 'vital_signs': vitals}).get_json()
+            r = nurse.post(f'/api/patients/{pid}/hourly-data', json={'hour': hour, 'vital_signs': vitals}).get_json()
         print(f"Eklendi: {info['name']:<30} son saat {hour}: %{r['prediction'] * 100:5.1f}  {r['risk_level']:<14} "
               f"güvenilirlik {r['reliability']['score']}")
 

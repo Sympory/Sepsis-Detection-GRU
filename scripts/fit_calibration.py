@@ -36,10 +36,7 @@ from reliability import mc_dropout_predict
 
 
 def load_model():
-    import importlib.util
-    spec = importlib.util.spec_from_file_location('sepsis_app', os.path.join(ROOT, 'app.py'))
-    app_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(app_module)
+    import ml_service as app_module   # eski modelin özel katmanları burada
     from tensorflow import keras
     custom_objects = {
         'AttentionLayer': app_module.AttentionLayer,

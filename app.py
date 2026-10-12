@@ -1,894 +1,602 @@
 """
-Sepsis Tahmin Sistemi - Hasta Takip Web Arayüzü
-================================================
+Sepsis Tahmin Sistemi — Web Sunucusu (Flask)
+============================================
 
-Flask web sunucusu ile GRU modelini yükler ve hasta takip API'si sağlar.
+Katmanlar:
+    app.py         → HTTP rotaları (bu dosya)
+    security.py    → giriş, oturum, rol bazlı yetki
+    db.py          → SQLite şeması, taşıma, sorgular, denetim kaydı
+    ml_service.py  → model, tahmin, güvenilirlik
 
-Endpoints:
-    GET  /                    : Ana sayfa (hasta listesi)
-    GET  /api/patients        : Tüm hastaları listele
-    POST /api/patients        : Yeni hasta ekle
-    GET  /api/patients/<id>   : Hasta detaylarını getir
-    POST /api/patients/<id>/hourly-data : Saatlik veri ekle ve tahmin yap
-    DELETE /api/patients/<id> : Hasta sil
+Roller: Yönetici (admin), Doktor (doctor), Hemşire (nurse). İzinler security.PERMISSIONS'ta.
 """
 
-from flask import Flask, request, jsonify, send_from_directory
-from flask_cors import CORS
-import numpy as np
-import pandas as pd
-import pickle
-import tensorflow as tf
-from tensorflow import keras
-import os
-import traceback
-import sqlite3
 import json
-from datetime import datetime
-# --- BU KISMI 'import' SATIRLARININ HEMEN ALTINA YAPIŞTIR ---
-
-from tensorflow.keras import layers
-import tensorflow.keras.backend as K
-
-# --- GÜNCEL KOD BAŞLANGICI (Optimized Model ile Uyumlu) ---
-
-def focal_loss(gamma=2., alpha=0.25):
-    def focal_loss_fixed(y_true, y_pred):
-        pt_1 = tf.where(tf.equal(y_true, 1), y_pred, tf.ones_like(y_pred))
-        pt_0 = tf.where(tf.equal(y_true, 0), y_pred, tf.zeros_like(y_pred))
-        return -K.sum(alpha * K.pow(1. - pt_1, gamma) * K.log(pt_1)) - K.sum((1 - alpha) * K.pow(pt_0, gamma) * K.log(1. - pt_0))
-    return focal_loss_fixed
-
-def binary_focal_loss(gamma=2., alpha=0.25):
-    """
-    Binary form of focal loss.
-    """
-    def binary_focal_loss_fixed(y_true, y_pred):
-        y_true = tf.cast(y_true, tf.float32)
-        epsilon = K.epsilon()
-        y_pred = K.clip(y_pred, epsilon, 1.0 - epsilon)
-        p_t = tf.where(K.equal(y_true, 1), y_pred, 1 - y_pred)
-        alpha_factor = K.ones_like(y_true) * alpha
-        alpha_t = tf.where(K.equal(y_true, 1), alpha_factor, 1 - alpha_factor)
-        cross_entropy = -K.log(p_t)
-        weight = alpha_t * K.pow((1 - p_t), gamma)
-        loss = weight * cross_entropy
-        return K.mean(loss, axis=1)
-    return binary_focal_loss_fixed
-
-class AttentionLayer(layers.Layer):
-    """Temporal Attention Mechanism"""
-    def __init__(self, **kwargs):
-        super(AttentionLayer, self).__init__(**kwargs)
-
-    def build(self, input_shape):
-        self.time_steps = input_shape[1]
-
-        if self.time_steps is None:
-             pass
-
-        self.W = self.add_weight(name='attention_weight',
-                                 shape=(input_shape[-1], 1),
-                                 initializer='normal',
-                                 trainable=True)
-
-        if self.time_steps is not None:
-            self.b = self.add_weight(name='attention_bias',
-                                     shape=(self.time_steps, 1),
-                                     initializer='zeros',
-                                     trainable=True)
-        else:
-            self.b = None
-
-        super(AttentionLayer, self).build(input_shape)
-
-    def call(self, x):
-        e = K.dot(x, self.W)
-        if self.b is not None:
-            e += self.b    
-        e = K.tanh(e)
-        a = K.softmax(e, axis=1)
-        output = x * a
-        return K.sum(output, axis=1)
-
-# --- GÜNCEL KOD BİTİŞİ ---
-
-app = Flask(__name__, static_folder='.')
-CORS(app)
-
-# Global değişkenler
-model = None
-imputer = None
-scaler = None
-ohe = None
-transformer = None
-feature_stats = {}
-estimator = None
-numerical_columns = []
-categorical_columns = []
-
-WINDOW_SIZE = 6
-
-# Dosya yolları - Merkezi config'den oku
-from config import (DB_PATH, MODEL_PATH, PREPROCESSING_DIR, OPTIMAL_THRESHOLD, MODEL_INFO,
-                    RISK_LEVELS, CLINICAL_OVERRIDES, FEATURE_SET, HOST, PORT)
-from features import build_hourly_features, feature_names, make_windows
-from reliability import (ReliabilityEstimator, apply_clinical_disagreement, mc_dropout_predict,
-                         normalize_inputs)
-
-# Modelin girdisinde kullanılmayan (eğitimde hariç tutulan) alanlar — yalnızca kayıt amaçlı
-MODEL_UNUSED_FIELDS = ['PCT', 'CRP', 'Presepsin', 'IL6']
-
-def init_database():
-    """Veritabanını oluştur ve tabloları tanımla"""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-
-    # Hastalar tablosu
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS patients (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            patient_id TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL,
-            age INTEGER,
-            gender TEXT,
-            admission_time TEXT,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Saatlik veriler tablosu
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS hourly_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            patient_id INTEGER NOT NULL,
-            hour INTEGER NOT NULL,
-            vital_signs TEXT NOT NULL,
-            prediction REAL,
-            risk_level TEXT,
-            timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (patient_id) REFERENCES patients(id),
-            UNIQUE(patient_id, hour)
-        )
-    ''')
-
-    # İndeksler (sorgu performansı için)
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_hourly_patient ON hourly_data(patient_id)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_hourly_hour ON hourly_data(patient_id, hour)')
-    cursor.execute('CREATE INDEX IF NOT EXISTS idx_patients_pid ON patients(patient_id)')
-
-    # Eski veritabanları için güvenilirlik sütunları (migration)
-    existing = {row[1] for row in cursor.execute('PRAGMA table_info(hourly_data)')}
-    if 'reliability' not in existing:
-        cursor.execute('ALTER TABLE hourly_data ADD COLUMN reliability REAL')
-    if 'assessment' not in existing:
-        cursor.execute('ALTER TABLE hourly_data ADD COLUMN assessment TEXT')
-
-    conn.commit()
-    conn.close()
-    print("[OK] Veritabani baslatildi (indeksler olusturuldu)")
-
-
-def get_db():
-    """Veritabanı bağlantısı al"""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
-# ============================================================================
-# VALIDATION RANGES & FUNCTIONS
-# ============================================================================
-
-VITAL_SIGN_RANGES = {
-    # Vital Signs
-    'HR': (40, 200),
-    'Temp': (35, 42),
-    'SBP': (60, 250),
-    'DBP': (30, 150),
-    'MAP': (40, 180),
-    'Resp': (8, 50),
-    'O2Sat': (70, 100),
-    'EtCO2': (10, 80),
-
-    # Lab - Hematology
-    'WBC': (1, 50),
-    'Platelets': (20, 800),
-    'Hgb': (5, 20),
-    'Hct': (15, 65),
-
-    # Lab - Chemistry  
-    'Creatinine': (0.3, 15),
-    'BUN': (3, 150),
-    'Glucose': (30, 600),
-    'Lactate': (0.5, 20),
-    'Bilirubin_total': (0.1, 30),
-    'Bilirubin_direct': (0, 15),
-
-    # Lab - ABG
-    'pH': (6.8, 7.8),
-    'PaCO2': (15, 100),
-    'PaO2': (40, 500),
-    'HCO3': (10, 45),
-    'BaseExcess': (-20, 20),
-
-    # Lab - Electrolytes
-    'Calcium': (5, 15),
-    'Chloride': (70, 130),
-    'Potassium': (2, 8),
-    'Magnesium': (0.5, 5),
-
-    # Lab - Liver
-    'AST': (5, 5000),
-    'ALT': (5, 5000),
-    'ALP': (20, 1000),
-
-    # Biomarkers
-    'PCT': (0.01, 100),
-    'CRP': (0, 500),
-    'Presepsin': (100, 5000),
-    'IL6': (0, 1000),
-    'IL1b': (0, 200),
-    'ESR': (0, 150),
-    'MDW': (15, 40),
-    'MPV': (5, 15),
-    'RDW': (10, 25),
-    'Neutrophils': (0.5, 40),
-    'Lymphocytes': (0.2, 10),
-    'DDimer': (0, 20),
-    'PT': (8, 50),
-    'aPTT': (15, 100),
-    'INR': (0.5, 10),
-    'IonizedCalcium': (0.8, 1.5),
-    'Phosphorus': (1, 10),
-    'Albumin': (1.5, 6),
-    'Sodium': (110, 170),
-    'NLR': (0.1, 100),
-    'PLR': (10, 1000),
-    'AnionGap': (0, 40),
-    'Urine_output': (0, 500),
-
-    # Formda olup yukarıda eksik kalanlar
-    'FiO2': (0.21, 100),          # 0.21-1.0 oran veya 21-100 (%) kabul edilir
-    'SaO2': (50, 100),
-    'Alkalinephos': (10, 2000),
-    'Phosphate': (0.5, 15),
-    'PTT': (15, 150),
-    'Fibrinogen': (30, 1200),
-    'TroponinI': (0, 100),
-}
-
-@app.route('/')
-def index():
-    """Ana sayfa"""
-    return send_from_directory('.', 'index.html')
-
-@app.route('/login')
-def login_page():
-    """Giriş sayfası"""
-    return send_from_directory('.', 'login.html')
-
-def validate_vital_signs(vital_signs):
-    """
-    Validate vital signs are within acceptable ranges
-    Returns: (is_valid, errors_list)
-    """
-    errors = []
-
-    for field, value in vital_signs.items():
-        # Skip empty values (let imputer handle them)
-        if value is None or value == '':
-            continue
-
-        if field in VITAL_SIGN_RANGES:
-            try:
-                num_value = float(value)
-                min_val, max_val = VITAL_SIGN_RANGES[field]
-
-                if not (min_val <= num_value <= max_val):
-                    errors.append(f"{field} must be between {min_val} and {max_val} (got {num_value})")
-            except (ValueError, TypeError):
-                errors.append(f"{field} must be a valid number")
-
-    return (len(errors) == 0, errors)
-
-
-# ============================================================================
-# MODEL FONKSİYONLARI
-# ============================================================================
-
-def load_model_and_preprocessing():
-    """Modeli ve preprocessing objelerini yükle"""
-    global model, estimator
-
-    try:
-        print("\n" + "="*60)
-        print("MODEL VE PREPROCESSING YUKLENIYOR...")
-        print("="*60)
-
-        # Modeli yukle
-        print(f"\n[1/2] Model yukleniyor ({FEATURE_SET}): {MODEL_PATH}")
-
-        # Custom objects tanimla (tum modeller icin)
-        custom_objects = {
-            'binary_focal_loss': binary_focal_loss,
-            'binary_focal_loss_fixed': binary_focal_loss(gamma=2.0, alpha=0.25),
-            'focal_loss_fixed': focal_loss(gamma=2.0, alpha=0.25),
-            'AttentionLayer': AttentionLayer,
-        }
-
-        try:
-            model = keras.models.load_model(MODEL_PATH, custom_objects=custom_objects)
-            print("  [OK] Model basariyla yuklendi")
-        except Exception as e1:
-            # Standart yukleme dene
-            try:
-                model = keras.models.load_model(MODEL_PATH)
-                print("  [OK] Model (standart) basariyla yuklendi")
-            except Exception as e2:
-                print(f"  [FAIL] Model yukleme hatasi: {str(e2)}")
-                raise e2
-
-        if FEATURE_SET == 'v3':
-            load_v3_preprocessing()
-        else:
-            load_legacy_preprocessing()
-
-        # Güvenilirlik tahmincisi (kalibratör varsa yüklenir)
-        estimator = ReliabilityEstimator(feature_stats, OPTIMAL_THRESHOLD,
-                                         calibration_dir=os.path.dirname(MODEL_PATH))
-        if estimator.calibrator is None:
-            print("  [WARN] Kalibrator yok - 'python scripts/fit_calibration.py' calistirin")
-        else:
-            print("  [OK] Kalibrator ve guvenilirlik istatistikleri yuklendi")
-
-        print("\n" + "="*60)
-        print("[OK] TUM BILESENLER BASARIYLA YUKLENDI!")
-        print("="*60 + "\n")
-
-        return True
-
-    except Exception as e:
-        print(f"\n[FAIL] HATA: Model yuklenemedi!")
-        print(f"Hata detayi: {str(e)}")
-        traceback.print_exc()
-        return False
-
-
-def load_v3_preprocessing():
-    """v3: ileri doldurma + ölçüm maskeleri (features.py), eğitim hastalarıyla fit edilmiş dönüştürücü"""
-    global transformer, feature_stats
-    print("\n[2/2] v3 ozellik donusturucu yukleniyor...")
-    with open(os.path.join(os.path.dirname(MODEL_PATH), 'transformer.pkl'), 'rb') as f:
-        transformer = pickle.load(f)
-    feature_stats = transformer.clinical_stats()
-    print(f"  [OK] {len(transformer.names)} ozellik (34 deger + 34 olcum maskesi + statik)")
-
-
-def load_legacy_preprocessing():
-    """Eski model: SimpleImputer(median) + StandardScaler, data/processed altındaki nesneler"""
-    global imputer, scaler, ohe, numerical_columns, categorical_columns, feature_stats
-    print("\n[2/2] Eski preprocessing nesneleri yukleniyor...")
-    with open(os.path.join(PREPROCESSING_DIR, 'column_info.pkl'), 'rb') as f:
-        column_info = pickle.load(f)
-    numerical_columns = column_info['numerical_columns']
-    categorical_columns = column_info.get('categorical_columns', [])
-    with open(os.path.join(PREPROCESSING_DIR, 'imputer.pkl'), 'rb') as f:
-        imputer = pickle.load(f)
-    with open(os.path.join(PREPROCESSING_DIR, 'scaler.pkl'), 'rb') as f:
-        scaler = pickle.load(f)
-    ohe_path = os.path.join(PREPROCESSING_DIR, 'ohe.pkl')
-    if os.path.exists(ohe_path):
-        with open(ohe_path, 'rb') as f:
-            ohe = pickle.load(f)
-    feature_stats = {c: (float(m), float(sd)) for c, m, sd in zip(numerical_columns, scaler.mean_, scaler.scale_)}
-    print(f"  [OK] {len(numerical_columns)} sayisal ozellik")
-
-
-def build_sequence(hourly_data_list, window_size=WINDOW_SIZE):
-    """
-    Saatlik kayıtlardan (1, window, features) model girdisini oluşturur.
-
-    6 saatten az veri varsa ilk ölçüm geçmişe kopyalanır (backfilling);
-    sıfır/medyan ile doldurmak hastayı 'sağlıklı' gösterirdi.
-    Dönüş: (X_seq, gerçek saat sayısı, penceredeki gerçek kayıtlar)
-    """
-    real_rows = hourly_data_list[-window_size:]
-    real_hours = len(real_rows)
-
-    if real_hours == 0:
-        raise ValueError('Tahmin için en az bir saatlik veri gerekli')
-
-    if FEATURE_SET == 'v3':
-        # Tüm geçmiş kullanılır: önceki saatlerde ölçülen lab değerleri ileri taşınır
-        feats = build_hourly_features(pd.DataFrame(hourly_data_list))
-        X_seq = make_windows(transformer.transform(feats), window_size)[-1:]
-    else:
-        X_seq = build_legacy_sequence(real_rows, window_size)
-
-    expected = model.input_shape[-1]
-    if X_seq.shape[-1] != expected:
-        raise ValueError(f'Özellik sayısı uyumsuz: {X_seq.shape[-1]} != model {expected}')
-
-    return X_seq.astype(np.float32), real_hours, real_rows
-
-
-def build_legacy_sequence(real_rows, window_size):
-    padding = [real_rows[0]] * (window_size - len(real_rows))
-    df = pd.DataFrame(padding + real_rows)
-
-    for col in numerical_columns:
-        if col not in df.columns: df[col] = np.nan
-    for col in categorical_columns:
-        if col not in df.columns: df[col] = ''
-
-    df = df[numerical_columns + categorical_columns]
-    df[numerical_columns] = df[numerical_columns].apply(pd.to_numeric, errors='coerce')
-
-    X_numerical = scaler.transform(imputer.transform(df[numerical_columns]))
-
-    if categorical_columns and ohe is not None:
-        X_combined = np.hstack([X_numerical, ohe.transform(df[categorical_columns])])
-    else:
-        X_combined = X_numerical
-
-    return X_combined.reshape(1, window_size, -1)
-
-
-def predict_with_history(hourly_data_list, window_size=WINDOW_SIZE):
-    """Deterministik tahmin + belirsizlik için MC-Dropout örnekleri"""
-    X_seq, real_hours, real_rows = build_sequence(hourly_data_list, window_size)
-    prediction = float(model.predict(X_seq, verbose=0).reshape(-1)[0])
-    mc_samples = mc_dropout_predict(model, X_seq)
-    return prediction, mc_samples, real_hours, real_rows
-
-
-def get_risk_level(prediction, vital_signs_dict=None):
-    """
-    Risk seviyesini belirler: (etiket, renk, tetiklenen klinik bayraklar).
-
-    Klinik Override: Model düşük tahmin verse bile kritik vital bulgular
-    varsa risk yükseltilir. Kurallar config.CLINICAL_OVERRIDES'tadır.
-    """
-    vs = vital_signs_dict or {}
-    flags = []
-    for name, rule in CLINICAL_OVERRIDES.items():
-        feature = name.rsplit('_', 1)[0]
-        value = vs.get(feature)
-        if value is None or value == '':
-            continue
-        value = float(value)
-        hit = value < rule['threshold'] if rule['direction'] == 'below' else value > rule['threshold']
-        if hit:
-            flags.append({'feature': feature, 'value': value, 'rule': name, 'points': rule['red_flags']})
-
-    points = sum(f['points'] for f in flags)
-    adjusted_prediction = prediction
-    if points >= 5:
-        adjusted_prediction = max(prediction, 0.60)
-    elif points >= 3:
-        adjusted_prediction = max(prediction, 0.35)
-    elif points >= 2:
-        adjusted_prediction = max(prediction, 0.25)
-
-    for key in ('critical', 'high', 'moderate', 'low', 'very_low'):
-        level = RISK_LEVELS[key]
-        if adjusted_prediction >= level['min']:
-            return level['label'], level['color'], flags
-    return RISK_LEVELS['very_low']['label'], RISK_LEVELS['very_low']['color'], flags
-
-
-# ============================================================================
-# WEB ENDPOINTS
-# ============================================================================
-
-
-
+import os
+import sqlite3
+import traceback
+
+from flask import Flask, g, jsonify, redirect, request, send_from_directory
+from werkzeug.exceptions import HTTPException
+
+import db
+import ml_service as ml
+import security
+from config import FEATURE_SET, HOST, MODEL_INFO, OPTIMAL_THRESHOLD, PORT
+from features import feature_names
+from reliability import normalize_inputs
+from security import require
+
+app = Flask(__name__, static_folder=None)
+MODEL_VERSION = f"{FEATURE_SET} · {MODEL_INFO.get('version', '')}"
 
 # Yalnızca arayüz dosyaları servis edilir; proje klasöründeki diğer dosyalar
 # (patients.db, .env, modeller) dışarı açılmaz.
-STATIC_FILES = {'index.html', 'style.css', 'script.js', 'login.html', 'login.js', 'login_style.css'}
+STATIC_FILES = {'style.css', 'script.js', 'login.js'}
+
+
+@app.before_request
+def open_db():
+    g.db = db.connect()
+    g.user = None
+
+
+@app.teardown_request
+def close_db(exc):
+    conn = g.pop('db', None)
+    if conn is not None:
+        conn.close()
+
+
+@app.errorhandler(Exception)
+def handle_error(e):
+    if isinstance(e, HTTPException):
+        return fail(e.description or e.name, e.code)
+    traceback.print_exc()
+    return jsonify({'success': False, 'error': 'Sunucu hatası: ' + str(e)}), 500
+
+
+def ok(payload=None, status=200):
+    return jsonify({'success': True, **(payload or {})}), status
+
+
+def fail(message, status=400, **extra):
+    return jsonify({'success': False, 'error': message, **extra}), status
+
+
+def audit(action, **kwargs):
+    db.audit(g.db, g.user, action, ip=security.client_ip(), **kwargs)
+
+
+# ============================================================================
+# SAYFALAR
+# ============================================================================
+
+@app.route('/')
+def index():
+    if not security.load_user(g.db):
+        return redirect('/login')
+    return send_from_directory('.', 'index.html')
+
+
+@app.route('/login')
+def login_page():
+    if security.load_user(g.db):
+        return redirect('/')
+    return send_from_directory('.', 'login.html')
 
 
 @app.route('/<path:path>')
 def serve_static(path):
-    """Statik dosyaları servis et"""
     if path not in STATIC_FILES:
-        return jsonify({'success': False, 'error': 'Bulunamadı'}), 404
+        return fail('Bulunamadı', 404)
     return send_from_directory('.', path)
 
 
 # ============================================================================
-# HASTA YÖNETİMİ API
+# KİMLİK DOĞRULAMA
 # ============================================================================
-
-@app.route('/api/patients', methods=['GET'])
-def get_patients():
-    """Tüm hastaları en son saatlik kayıtlarıyla birlikte listele"""
-    try:
-        conn = get_db()
-        patients = conn.execute('''
-            SELECT p.*,
-                   (SELECT COUNT(*) FROM hourly_data h WHERE h.patient_id = p.id) AS total_hours,
-                   l.hour AS latest_hour,
-                   l.prediction AS latest_prediction,
-                   l.risk_level AS latest_risk_level,
-                   l.reliability AS latest_reliability,
-                   l.timestamp AS latest_timestamp
-            FROM patients p
-            LEFT JOIN hourly_data l ON l.id = (
-                SELECT id FROM hourly_data WHERE patient_id = p.id ORDER BY hour DESC LIMIT 1
-            )
-            ORDER BY p.created_at DESC
-        ''').fetchall()
-        conn.close()
-
-        patients_list = [{
-            'id': p['id'],
-            'patient_id': p['patient_id'],
-            'name': p['name'],
-            'age': p['age'],
-            'gender': p['gender'],
-            'admission_time': p['admission_time'],
-            'total_hours': p['total_hours'],
-            'hourly_data_count': p['total_hours'],
-            'latest_hour': p['latest_hour'],
-            'latest_prediction': p['latest_prediction'],
-            'latest_risk': p['latest_risk_level'],
-            'latest_risk_level': p['latest_risk_level'],
-            'latest_reliability': p['latest_reliability'],
-            'latest_timestamp': p['latest_timestamp'],
-            'created_at': p['created_at']
-        } for p in patients]
-
-        return jsonify({'success': True, 'patients': patients_list}), 200
-
-    except Exception as e:
-        print(f"[FAIL] Hasta listesi hatası: {str(e)}")
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/patients', methods=['POST'])
-def create_patient():
-    """Yeni hasta ekle"""
-    try:
-        data = request.get_json()
-
-        required_fields = ['patient_id', 'name']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({
-                    'success': False,
-                    'error': f'Eksik alan: {field}'
-                }), 400
-
-        conn = get_db()
-        cursor = conn.cursor()
-
-        cursor.execute('''
-            INSERT INTO patients (patient_id, name, age, gender, admission_time)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (
-            data['patient_id'],
-            data['name'],
-            data.get('age'),
-            data.get('gender'),
-            data.get('admission_time', datetime.now().isoformat())
-        ))
-
-        patient_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-
-        print(f"[OK] Yeni hasta eklendi: {data['name']} (ID: {patient_id})")
-
-        return jsonify({
-            'success': True,
-            'patient_id': patient_id,
-            'message': 'Hasta başarıyla eklendi'
-        }), 201
-
-    except sqlite3.IntegrityError:
-        return jsonify({
-            'success': False,
-            'error': 'Bu hasta ID zaten mevcut'
-        }), 400
-    except Exception as e:
-        print(f"[FAIL] Hasta ekleme hatası: {str(e)}")
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-@app.route('/api/patients/<int:patient_id>', methods=['GET'])
-def get_patient(patient_id):
-    """Hasta detaylarını ve tüm saatlik verileri getir"""
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-
-        # Hasta bilgisi
-        patient = cursor.execute(
-            'SELECT * FROM patients WHERE id = ?',
-            (patient_id,)
-        ).fetchone()
-
-        if not patient:
-            conn.close()
-            return jsonify({
-                'success': False,
-                'error': 'Hasta bulunamadı'
-            }), 404
-
-        # Saatlik veriler
-        hourly_data = cursor.execute('''
-            SELECT * FROM hourly_data 
-            WHERE patient_id = ? 
-            ORDER BY hour ASC
-        ''', (patient_id,)).fetchall()
-
-        conn.close()
-
-        hourly_list = [{
-            'id': h['id'],
-            'hour': h['hour'],
-            'vital_signs': json.loads(h['vital_signs']),
-            'prediction': h['prediction'],
-            'risk_level': h['risk_level'],
-            'timestamp': h['timestamp'],
-            'reliability': h['reliability'],
-            'assessment': json.loads(h['assessment']) if h['assessment'] else None
-        } for h in hourly_data]
-
-        return jsonify({
-            'success': True,
-            'patient': {
-                'id': patient['id'],
-                'patient_id': patient['patient_id'],
-                'name': patient['name'],
-                'age': patient['age'],
-                'gender': patient['gender'],
-                'admission_time': patient['admission_time'],
-                'created_at': patient['created_at']
-            },
-            'hourly_data': hourly_list
-        }), 200
-
-    except Exception as e:
-        print(f"[FAIL] Hasta detay hatası: {str(e)}")
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/patients/<int:patient_id>/hourly-data', methods=['POST'])
-def add_hourly_data(patient_id):
-    """
-    Hastaya saatlik veri ekler, tahmin yapar ve tahminin güvenilirliğini hesaplar.
-    Hasta bilgileri (Yaş, Cinsiyet) ve saat bilgisi model girdisine enjekte edilir.
-    """
-    try:
-        data = request.get_json() or {}
-
-        if 'hour' not in data or 'vital_signs' not in data:
-            return jsonify({'success': False, 'error': 'hour ve vital_signs gerekli'}), 400
-
-        try:
-            hour = int(data['hour'])
-        except (TypeError, ValueError):
-            return jsonify({'success': False, 'error': 'Saat geçerli bir tam sayı olmalı'}), 400
-        if hour < 0:
-            return jsonify({'success': False, 'error': 'Saat negatif olamaz'}), 400
-
-        # Validasyon
-        is_valid, errors = validate_vital_signs(data['vital_signs'])
-        if not is_valid:
-            return jsonify({'success': False, 'error': 'Validation failed', 'details': errors}), 400
-
-        vital_signs, transform_notes = normalize_inputs(data['vital_signs'])
-        if not any(k not in MODEL_UNUSED_FIELDS for k in vital_signs):
-            return jsonify({
-                'success': False,
-                'error': 'Hiç ölçüm girilmedi. Boş form modele gönderilirse eksikler "normal" '
-                         'medyan değerlerle doldurulur ve sonuç yanıltıcı olur.'
-            }), 400
-
-        conn = get_db()
-
-        patient = conn.execute('SELECT * FROM patients WHERE id = ?', (patient_id,)).fetchone()
-        if not patient:
-            conn.close()
-            return jsonify({'success': False, 'error': 'Hasta bulunamadı'}), 404
-
-        # Statik veriler (Model Gender için Male=1, Female=0 bekler)
-        demographics = {}
-        if patient['gender']:
-            demographics['Gender'] = 1 if patient['gender'] in ['Male', 'Erkek', 'male', 'erkek', '1'] else 0
-        if patient['age']:
-            demographics['Age'] = patient['age']
-
-        prev_rows = conn.execute('''
-            SELECT hour, vital_signs FROM hourly_data
-            WHERE patient_id = ? AND hour < ?
-            ORDER BY hour ASC
-        ''', (patient_id, hour)).fetchall()
-
-        history = []
-        for row in prev_rows:
-            row_dict = normalize_inputs(json.loads(row['vital_signs']))[0]
-            row_dict.update(demographics, Hour=row['hour'])
-            history.append(row_dict)
-
-        current_dict = dict(vital_signs)
-        current_dict.update(demographics, Hour=hour)
-        history.append(current_dict)
-
-        # Tahmin + güvenilirlik
-        prediction, mc_samples, real_hours, real_rows = predict_with_history(history)
-        assessment = estimator.assess(real_rows, real_hours, WINDOW_SIZE, mc_samples, transform_notes)
-        if 'Age' not in demographics:
-            assessment['reasons'].append('Yaş girilmemiş; eğitim verisinin medyan yaşı kullanıldı.')
-        assessment['calibrated_probability'] = estimator.calibrate(prediction)
-        assessment['unused_fields'] = [f for f in MODEL_UNUSED_FIELDS if f in vital_signs]
-
-        if assessment['sufficient_data']:
-            risk_text, risk_color, red_flags = get_risk_level(prediction, current_dict)
-        else:
-            risk_text, risk_color, red_flags = 'Yetersiz Veri', '#6b7280', []
-        assessment['red_flags'] = red_flags
-        apply_clinical_disagreement(assessment, prediction, OPTIMAL_THRESHOLD, red_flags)
-
-        conn.execute('''
-            INSERT OR REPLACE INTO hourly_data
-            (patient_id, hour, vital_signs, prediction, risk_level, reliability, assessment)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (patient_id, hour, json.dumps(vital_signs), prediction, risk_text,
-              assessment['score'], json.dumps(assessment, ensure_ascii=False)))
-
-        conn.commit()
-        conn.close()
-
-        return jsonify({
-            'success': True,
-            'hour': hour,
-            'prediction': prediction,
-            'risk_level': risk_text,
-            'risk_color': risk_color,
-            'is_sepsis_risk': assessment['sufficient_data'] and prediction >= OPTIMAL_THRESHOLD,
-            'threshold': OPTIMAL_THRESHOLD,
-            'reliability': assessment,
-            'message': 'Veri başarıyla işlendi'
-        }), 201
-
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-@app.route('/api/patients/<int:patient_id>', methods=['DELETE'])
-def delete_patient(patient_id):
-    """Hasta sil"""
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-
-        # Hasta kontrolü
-        patient = cursor.execute(
-            'SELECT name FROM patients WHERE id = ?',
-            (patient_id,)
-        ).fetchone()
-
-        if not patient:
-            conn.close()
-            return jsonify({
-                'success': False,
-                'error': 'Hasta bulunamadı'
-            }), 404
-
-        # Saatlik verileri sil
-        cursor.execute('DELETE FROM hourly_data WHERE patient_id = ?', (patient_id,))
-
-        # Hastayı sil
-        cursor.execute('DELETE FROM patients WHERE id = ?', (patient_id,))
-
-        conn.commit()
-        conn.close()
-
-        print(f"[OK] Hasta silindi: {patient['name']} (ID: {patient_id})")
-
-        return jsonify({
-            'success': True,
-            'message': 'Hasta başarıyla silindi'
-        }), 200
-
-    except Exception as e:
-        print(f"[FAIL] Hasta silme hatası: {str(e)}")
-        traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-# ============================================================================
-# AUTHENTICATION ENDPOINTS (Demo Mode for SQLite)
-# ============================================================================
-
-@app.route('/api/hospitals', methods=['GET'])
-def get_hospitals():
-    """Get list of hospitals for login"""
-    return jsonify({
-        'success': True,
-        'hospitals': [{'id': 1, 'name': 'Demo Hospital', 'code': 'DEMO'}]
-    }), 200
-
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    """Demo login - accepts any credentials"""
-    data = request.get_json() or {}
-    return jsonify({
-        'success': True,
-        'user': {
-            'id': 1,
-            'username': data.get('username', 'demo'),
-            'role': 'doctor',
-            'hospital_name': 'Demo Hospital'
-        }
-    }), 200
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip()
+    password = data.get('password') or ''
+    if not username or not password:
+        return fail('Kullanıcı adı ve şifre gerekli')
+
+    user, error = security.authenticate(g.db, username, password)
+    if not user:
+        db.audit(g.db, None, 'auth.login_failed', ip=security.client_ip(), success=False,
+                 details={'username': username[:50], 'reason': error})
+        g.db.commit()
+        return fail(error, 401)
+
+    token = security.create_session(g.db, user)
+    g.user = dict(user)
+    audit('auth.login', resource_type='user', resource_id=user['id'])
+    g.db.commit()
+    response, status = ok({'user': security.public_user(user)})
+    return security.set_session_cookie(response, token), status
 
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
-    """Logout"""
-    return jsonify({'success': True}), 200
+    user = security.load_user(g.db)
+    security.end_session(g.db, request.cookies.get(security.SESSION_COOKIE))
+    if user:
+        g.user = user
+        audit('auth.logout', resource_type='user', resource_id=user['id'])
+    g.db.commit()
+    response, status = ok()
+    response.delete_cookie(security.SESSION_COOKIE)
+    return response, status
 
 
-@app.route('/api/auth/me', methods=['GET'])
-def get_current_user():
-    """Get current user info"""
-    return jsonify({
-        'success': True,
-        'user': {'id': 1, 'username': 'demo', 'role': 'doctor'}
-    }), 200
+@app.route('/api/auth/me')
+def me():
+    user = security.load_user(g.db)
+    if not user:
+        return fail('Oturum açmanız gerekiyor', 401, code='auth_required')
+    return ok({'user': security.public_user(user), 'session_idle_minutes': security.SESSION_IDLE_MINUTES})
 
 
-@app.route('/api/health', methods=['GET'])
+@app.route('/api/auth/change-password', methods=['POST'])
+@require('patients.view')
+def change_password():
+    data = request.get_json(silent=True) or {}
+    if not security.verify_password(data.get('current_password') or '', g.user['password_hash']):
+        audit('auth.password_change', resource_type='user', resource_id=g.user['id'], success=False)
+        g.db.commit()
+        return fail('Mevcut şifre hatalı')
+    problem = security.password_problem(data.get('new_password'))
+    if problem:
+        return fail(problem)
+    g.db.execute('UPDATE users SET password_hash = ? WHERE id = ?',
+                 (security.hash_password(data['new_password']), g.user['id']))
+    audit('auth.password_change', resource_type='user', resource_id=g.user['id'])
+    g.db.commit()
+    return ok({'message': 'Şifre değiştirildi'})
+
+
+@app.route('/api/auth/demo-accounts')
+def demo_accounts():
+    if not security.demo_enabled():
+        return ok({'accounts': []})
+    return ok({'accounts': [{'username': a['username'], 'password': a['password'],
+                             'role_label': security.ROLE_LABELS[a['role']]} for a in security.DEMO_ACCOUNTS]})
+
+
+# ============================================================================
+# HASTALAR
+# ============================================================================
+
+@app.route('/api/patients', methods=['GET'])
+@require('patients.view')
+def list_patients():
+    status = request.args.get('status', 'active')
+    if status not in ('active', 'discharged', 'all'):
+        return fail('Geçersiz durum filtresi')
+    return ok({'patients': db.list_patients(g.db, status)})
+
+
+@app.route('/api/patients', methods=['POST'])
+@require('patients.create')
+def create_patient():
+    data = request.get_json(silent=True) or {}
+    code = (data.get('patient_id') or '').strip()
+    name = (data.get('name') or '').strip()
+    if not code or not name:
+        return fail('Hasta ID ve ad zorunlu')
+    age = data.get('age')
+    if age not in (None, ''):
+        try:
+            age = int(age)
+        except (TypeError, ValueError):
+            return fail('Yaş sayı olmalı')
+        if not 0 <= age <= 120:
+            return fail('Yaş 0–120 arasında olmalı')
+    else:
+        age = None
+    gender = data.get('gender') or None
+    if gender not in (None, 'Male', 'Female'):
+        return fail('Cinsiyet geçersiz')
+
+    try:
+        pk = g.db.execute(
+            'INSERT INTO patients (patient_id, name, age, gender, admission_time, created_at, created_by) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?)',
+            (code, name, age, gender, data.get('admission_time') or db.now(), db.now(), g.user['id'])).lastrowid
+    except sqlite3.IntegrityError:
+        return fail('Bu hasta ID zaten kayıtlı')
+    audit('patient.create', resource_type='patient', resource_id=pk, patient_id=pk,
+          details={'patient_id': code, 'name': name, 'age': age, 'gender': gender})
+    g.db.commit()
+    return ok({'patient_id': pk, 'message': 'Hasta kabul edildi'}, 201)
+
+
+@app.route('/api/patients/<int:patient_pk>', methods=['GET'])
+@require('patients.view')
+def get_patient(patient_pk):
+    patient = db.get_patient(g.db, patient_pk)
+    if not patient:
+        return fail('Hasta bulunamadı', 404)
+    open_alarm = g.db.execute("SELECT * FROM alarms WHERE patient_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1",
+                              (patient_pk,)).fetchone()
+    return ok({'patient': patient, 'hourly_data': db.get_observations(g.db, patient_pk),
+               'open_alarm': dict(open_alarm) if open_alarm else None})
+
+
+@app.route('/api/patients/<int:patient_pk>/hourly-data', methods=['POST'])
+@require('observations.create')
+def add_hourly_data(patient_pk):
+    """Saatlik ölçüm ekler (veya aynı saati günceller), tahmin + güvenilirlik hesaplar."""
+    if not ml.is_ready():
+        return fail('Model yüklenmedi', 503)
+    data = request.get_json(silent=True) or {}
+    if 'hour' not in data or 'vital_signs' not in data or not isinstance(data['vital_signs'], dict):
+        return fail('hour ve vital_signs gerekli')
+    try:
+        hour = int(data['hour'])
+    except (TypeError, ValueError):
+        return fail('Saat geçerli bir tam sayı olmalı')
+    if hour < 0:
+        return fail('Saat negatif olamaz')
+
+    is_valid, errors = ml.validate_vital_signs(data['vital_signs'])
+    if not is_valid:
+        return fail('Geçersiz değerler', details=errors)
+    vital_signs, notes = normalize_inputs(data['vital_signs'])
+    if not any(k not in ml.MODEL_UNUSED_FIELDS for k in vital_signs):
+        return fail('Hiç ölçüm girilmedi. Boş form modele gönderilirse eksikler "normal" '
+                    'medyan değerlerle doldurulur ve sonuç yanıltıcı olur.')
+
+    patient = db.get_patient(g.db, patient_pk)
+    if not patient:
+        return fail('Hasta bulunamadı', 404)
+    if patient['status'] != 'active':
+        return fail('Taburcu edilmiş hastaya veri girilemez')
+
+    demographics = {}
+    if patient['gender']:
+        demographics['Gender'] = 1 if patient['gender'] == 'Male' else 0
+    if patient['age'] is not None:
+        demographics['Age'] = patient['age']
+    previous = [(o['hour'], o['vital_signs']) for o in db.get_observations(g.db, patient_pk, before_hour=hour)]
+
+    result = ml.assess(previous, hour, vital_signs, demographics, notes)
+    obs_id, old_values = db.save_observation(g.db, patient_pk, hour, vital_signs, g.user, result, MODEL_VERSION)
+    alarm_id = db.raise_alarm_if_needed(g.db, patient_pk, obs_id, result)
+
+    audit('observation.update' if old_values is not None else 'observation.create',
+          resource_type='observation', resource_id=obs_id, patient_id=patient_pk,
+          details={'hour': hour, 'values': vital_signs, 'old_values': old_values,
+                   'risk_level': result['risk_level'], 'score': round(result['prediction'], 4),
+                   'reliability': result['assessment']['score']})
+    if alarm_id:
+        db.audit(g.db, None, 'alarm.raised', resource_type='alarm', resource_id=alarm_id, patient_id=patient_pk,
+                 details={'risk_level': result['risk_level'], 'hour': hour})
+    g.db.commit()
+
+    return ok({'hour': hour, 'prediction': result['prediction'], 'risk_level': result['risk_level'],
+               'risk_color': result['risk_color'], 'is_sepsis_risk': result['is_sepsis_risk'],
+               'threshold': OPTIMAL_THRESHOLD, 'reliability': result['assessment'],
+               'alarm_raised': bool(alarm_id), 'overwritten': old_values is not None,
+               'message': 'Veri kaydedildi'}, 201)
+
+
+def _parse_outcome(data, patient_pk):
+    """Doktorun girdiği sonucu doğrular. Dönüş: ((sepsis, onset_hour, note), hata)"""
+    outcome = data.get('outcome') or {}
+    sepsis = outcome.get('sepsis')
+    if sepsis not in ('yes', 'no', 'unknown'):
+        return None, 'Sepsis sonucu seçilmeli (Evet / Hayır / Belirsiz)'
+    onset = outcome.get('onset_hour')
+    if sepsis == 'yes':
+        try:
+            onset = int(onset)
+        except (TypeError, ValueError):
+            return None, 'Sepsis başlangıç saati (YBÜ saati) girilmeli'
+        if onset < 0:
+            return None, 'Başlangıç saati negatif olamaz'
+        last = g.db.execute('SELECT MAX(hour) FROM observations WHERE patient_id = ?', (patient_pk,)).fetchone()[0]
+        if last is not None and onset > last + 48:
+            return None, f'Başlangıç saati son kayıttan (saat {last}) çok sonra olamaz'
+    else:
+        onset = None
+    note = (outcome.get('note') or '').strip()[:500] or None
+    return (sepsis, onset, note), None
+
+
+@app.route('/api/patients/<int:patient_pk>/discharge', methods=['POST'])
+@require('patients.discharge')
+def discharge_patient(patient_pk):
+    """Taburcu: hasta arşive alınır, doktor gerçek sonucu (veri seti etiketi) işaretler."""
+    patient = db.get_patient(g.db, patient_pk)
+    if not patient:
+        return fail('Hasta bulunamadı', 404)
+    if patient['status'] == 'discharged':
+        return fail('Hasta zaten taburcu edilmiş')
+    data = request.get_json(silent=True) or {}
+    outcome, error = _parse_outcome(data, patient_pk)
+    if error:
+        return fail(error)
+    g.db.execute("UPDATE patients SET status = 'discharged', discharged_at = ?, discharged_by = ? WHERE id = ?",
+                 (db.now(), g.user['id'], patient_pk))
+    db.save_outcome(g.db, patient_pk, *outcome, g.user)
+    closed = g.db.execute(
+        "UPDATE alarms SET status = 'acknowledged', acknowledged_by = ?, acknowledged_at = ?, "
+        "note = 'Hasta taburcu edildi' WHERE patient_id = ? AND status = 'open'",
+        (g.user['id'], db.now(), patient_pk)).rowcount
+    audit('patient.discharge', resource_type='patient', resource_id=patient_pk, patient_id=patient_pk,
+          details={'sepsis': outcome[0], 'onset_hour': outcome[1], 'note': outcome[2], 'closed_alarms': closed})
+    g.db.commit()
+    return ok({'message': 'Hasta taburcu edildi ve arşive alındı'})
+
+
+@app.route('/api/patients/<int:patient_pk>/outcome', methods=['PUT'])
+@require('outcomes.label')
+def update_outcome(patient_pk):
+    """Taburcu edilmiş hastanın sonucunu düzeltir (ör. kültür sonucu sonradan geldiyse)."""
+    patient = db.get_patient(g.db, patient_pk)
+    if not patient:
+        return fail('Hasta bulunamadı', 404)
+    outcome, error = _parse_outcome(request.get_json(silent=True) or {}, patient_pk)
+    if error:
+        return fail(error)
+    old = db.save_outcome(g.db, patient_pk, *outcome, g.user)
+    audit('patient.outcome', resource_type='patient', resource_id=patient_pk, patient_id=patient_pk,
+          details={'sepsis': outcome[0], 'onset_hour': outcome[1], 'note': outcome[2], 'old': old})
+    g.db.commit()
+    return ok({'message': 'Sonuç güncellendi'})
+
+
+@app.route('/api/patients/<int:patient_pk>/readmit', methods=['POST'])
+@require('patients.discharge')
+def readmit_patient(patient_pk):
+    patient = db.get_patient(g.db, patient_pk)
+    if not patient:
+        return fail('Hasta bulunamadı', 404)
+    if patient['status'] == 'active':
+        return fail('Hasta zaten aktif')
+    g.db.execute("UPDATE patients SET status = 'active', discharged_at = NULL, discharged_by = NULL WHERE id = ?",
+                 (patient_pk,))
+    audit('patient.readmit', resource_type='patient', resource_id=patient_pk, patient_id=patient_pk)
+    g.db.commit()
+    return ok({'message': 'Hasta yeniden aktif'})
+
+
+@app.route('/api/patients/<int:patient_pk>', methods=['DELETE'])
+@require('patients.delete')
+def delete_patient(patient_pk):
+    patient = db.get_patient(g.db, patient_pk)
+    if not patient:
+        return fail('Hasta bulunamadı', 404)
+    hours = g.db.execute('SELECT COUNT(*) FROM observations WHERE patient_id = ?', (patient_pk,)).fetchone()[0]
+    g.db.execute('DELETE FROM patients WHERE id = ?', (patient_pk,))   # ölçümler, tahminler, alarmlar CASCADE
+    audit('patient.delete', resource_type='patient', resource_id=patient_pk, patient_id=patient_pk,
+          details={'patient_id': patient['patient_id'], 'name': patient['name'], 'deleted_hours': hours})
+    g.db.commit()
+    return ok({'message': 'Hasta ve tüm kayıtları kalıcı olarak silindi'})
+
+
+@app.route('/api/patients/<int:patient_pk>/history')
+@require('history.view')
+def patient_history(patient_pk):
+    return ok({'history': db.patient_history(g.db, patient_pk)})
+
+
+# ============================================================================
+# ALARMLAR
+# ============================================================================
+
+@app.route('/api/alarms')
+@require('alarms.view')
+def list_alarms():
+    status = request.args.get('status', 'open')
+    if status not in ('open', 'acknowledged', 'all'):
+        return fail('Geçersiz durum filtresi')
+    return ok({'alarms': db.list_alarms(g.db, status)})
+
+
+@app.route('/api/alarms/<int:alarm_id>/acknowledge', methods=['POST'])
+@require('alarms.acknowledge')
+def acknowledge_alarm(alarm_id):
+    alarm = g.db.execute('SELECT * FROM alarms WHERE id = ?', (alarm_id,)).fetchone()
+    if not alarm:
+        return fail('Alarm bulunamadı', 404)
+    if alarm['status'] != 'open':
+        return fail('Alarm zaten onaylanmış')
+    note = ((request.get_json(silent=True) or {}).get('note') or '').strip()
+    if len(note) < 3:
+        return fail('Klinik not zorunlu (ör. "Laktat ve kültür istendi")')
+    g.db.execute("UPDATE alarms SET status = 'acknowledged', acknowledged_by = ?, acknowledged_at = ?, note = ? WHERE id = ?",
+                 (g.user['id'], db.now(), note[:1000], alarm_id))
+    audit('alarm.acknowledge', resource_type='alarm', resource_id=alarm_id, patient_id=alarm['patient_id'],
+          details={'note': note[:1000], 'risk_level': alarm['risk_level']})
+    g.db.commit()
+    return ok({'message': 'Alarm onaylandı'})
+
+
+# ============================================================================
+# YÖNETİCİ: KULLANICILAR VE DENETİM KAYITLARI
+# ============================================================================
+
+def _user_row(u):
+    return {'id': u['id'], 'username': u['username'], 'full_name': u['full_name'], 'role': u['role'],
+            'role_label': security.ROLE_LABELS.get(u['role']), 'is_active': bool(u['is_active']),
+            'locked_until': u['locked_until'], 'last_login': u['last_login'], 'created_at': u['created_at']}
+
+
+@app.route('/api/users')
+@require('users.manage')
+def list_users():
+    rows = g.db.execute('SELECT * FROM users ORDER BY role, full_name').fetchall()
+    return ok({'users': [_user_row(u) for u in rows]})
+
+
+@app.route('/api/users', methods=['POST'])
+@require('users.manage')
+def create_user():
+    data = request.get_json(silent=True) or {}
+    username = (data.get('username') or '').strip()
+    full_name = (data.get('full_name') or '').strip()
+    role = data.get('role')
+    if not username or not full_name:
+        return fail('Kullanıcı adı ve ad soyad zorunlu')
+    if role not in security.ROLE_LABELS:
+        return fail('Geçersiz rol')
+    problem = security.password_problem(data.get('password'))
+    if problem:
+        return fail(problem)
+    try:
+        uid = g.db.execute('INSERT INTO users (username, password_hash, full_name, role, created_by) VALUES (?, ?, ?, ?, ?)',
+                           (username, security.hash_password(data['password']), full_name, role, g.user['id'])).lastrowid
+    except sqlite3.IntegrityError:
+        return fail('Bu kullanıcı adı zaten var')
+    audit('user.create', resource_type='user', resource_id=uid,
+          details={'username': username, 'full_name': full_name, 'role': role})
+    g.db.commit()
+    return ok({'user_id': uid}, 201)
+
+
+@app.route('/api/users/<int:user_id>', methods=['PATCH'])
+@require('users.manage')
+def update_user(user_id):
+    target = g.db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+    if not target:
+        return fail('Kullanıcı bulunamadı', 404)
+    data = request.get_json(silent=True) or {}
+    changes = {}
+    if 'role' in data and data['role'] != target['role']:
+        if data['role'] not in security.ROLE_LABELS:
+            return fail('Geçersiz rol')
+        if user_id == g.user['id']:
+            return fail('Kendi rolünüzü değiştiremezsiniz')
+        changes['role'] = (target['role'], data['role'])
+        g.db.execute('UPDATE users SET role = ? WHERE id = ?', (data['role'], user_id))
+    if 'is_active' in data and bool(data['is_active']) != bool(target['is_active']):
+        if user_id == g.user['id']:
+            return fail('Kendi hesabınızı devre dışı bırakamazsınız')
+        changes['is_active'] = (bool(target['is_active']), bool(data['is_active']))
+        g.db.execute('UPDATE users SET is_active = ? WHERE id = ?', (1 if data['is_active'] else 0, user_id))
+    if data.get('unlock'):
+        changes['unlocked'] = True
+        g.db.execute('UPDATE users SET locked_until = NULL, failed_login_attempts = 0 WHERE id = ?', (user_id,))
+    if data.get('password'):
+        problem = security.password_problem(data['password'])
+        if problem:
+            return fail(problem)
+        changes['password_reset'] = True
+        g.db.execute('UPDATE users SET password_hash = ? WHERE id = ?', (security.hash_password(data['password']), user_id))
+    if not changes:
+        return fail('Değişiklik yok')
+    if 'role' in changes or 'is_active' in changes or 'password_reset' in changes:
+        g.db.execute('DELETE FROM sessions WHERE user_id = ?', (user_id,))   # açık oturumları kapat
+    audit('user.update', resource_type='user', resource_id=user_id,
+          details={'username': target['username'], **{k: v for k, v in changes.items()}})
+    g.db.commit()
+    return ok({'message': 'Kullanıcı güncellendi'})
+
+
+@app.route('/api/audit-logs')
+@require('audit.view')
+def audit_logs():
+    clauses, params = [], []
+    if request.args.get('username'):
+        clauses.append('a.username = ?')
+        params.append(request.args['username'])
+    if request.args.get('action'):
+        clauses.append('a.action LIKE ?')
+        params.append(request.args['action'] + '%')
+    if request.args.get('patient_id'):
+        clauses.append('a.patient_id = ?')
+        params.append(int(request.args['patient_id']))
+    if request.args.get('failed') == '1':
+        clauses.append('a.success = 0')
+    where = ('WHERE ' + ' AND '.join(clauses)) if clauses else ''
+    limit = min(int(request.args.get('limit', 100)), 500)
+    offset = max(int(request.args.get('offset', 0)), 0)
+    total = g.db.execute(f'SELECT COUNT(*) FROM audit_logs a {where}', params).fetchone()[0]
+    rows = g.db.execute(
+        f'''SELECT a.*, p.name AS patient_name FROM audit_logs a
+            LEFT JOIN patients p ON p.id = a.patient_id {where}
+            ORDER BY a.id DESC LIMIT ? OFFSET ?''', params + [limit, offset]).fetchall()
+    logs = []
+    for r in rows:
+        d = dict(r)
+        d['details'] = json.loads(d['details']) if d['details'] else None
+        logs.append(d)
+    return ok({'logs': logs, 'total': total})
+
+
+@app.route('/api/admin/db-stats')
+@require('audit.view')
+def db_stats():
+    return ok({'tables': db.stats(g.db), 'schema_version': db.SCHEMA_VERSION,
+               'database': os.path.basename(db.DB_PATH), 'dataset': db.dataset_summary(g.db)})
+
+
+@app.route('/api/admin/dataset.csv')
+@require('dataset.export')
+def export_dataset():
+    """Etiketli, anonim veri seti (PhysioNet 2019 formatı) — yeniden eğitim için."""
+    import csv
+    import io
+    header, rows = db.export_dataset_rows(g.db)
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(header)
+    writer.writerows(rows)
+    audit('dataset.export', details={'rows': len(rows), 'patients': len({r[-1] for r in rows})})
+    g.db.commit()
+    from flask import Response
+    filename = f"sepsisai_veriseti_{db.now()[:10]}.csv"
+    return Response(buf.getvalue(), mimetype='text/csv',
+                    headers={'Content-Disposition': f'attachment; filename={filename}'})
+
+
+# ============================================================================
+# MODEL VE SİSTEM
+# ============================================================================
+
+@app.route('/api/health')
 def health():
-    """Sağlık kontrolü endpoint'i"""
     return jsonify({
-        'status': 'healthy',
-        'model_loaded': model is not None,
-        'preprocessing_loaded': (transformer is not None) if FEATURE_SET == 'v3' else (imputer is not None and scaler is not None),
+        'status': 'healthy' if ml.is_ready() else 'degraded',
+        'model_loaded': ml.model is not None,
+        'preprocessing_loaded': ml.is_ready(),
         'feature_set': FEATURE_SET,
-        'calibrator_loaded': estimator is not None and estimator.calibrator is not None,
-        'database_exists': os.path.exists(DB_PATH)
+        'calibrator_loaded': ml.estimator is not None and ml.estimator.calibrator is not None,
+        'database_exists': os.path.exists(db.DB_PATH),
     }), 200
 
 
-@app.route('/api/model-info', methods=['GET'])
+@app.route('/api/model-info')
+@require('model.view')
 def model_info():
-    """Aktif modelin bilgileri ve ölçülmüş güvenilirlik istatistikleri"""
-    stats = estimator.stats if estimator else {}
-    return jsonify({
-        'success': True,
+    return ok({
         'model': MODEL_INFO,
         'threshold': OPTIMAL_THRESHOLD,
-        'window_size': WINDOW_SIZE,
-        'features': feature_names() if FEATURE_SET == 'v3' else numerical_columns,
+        'window_size': ml.WINDOW_SIZE,
+        'features': feature_names() if FEATURE_SET == 'v3' else ml.numerical_columns,
         'feature_set': FEATURE_SET,
-        'unused_fields': MODEL_UNUSED_FIELDS,
-        'reliability_stats': stats,
-    }), 200
+        'unused_fields': ml.MODEL_UNUSED_FIELDS,
+        'reliability_stats': ml.estimator.stats if ml.estimator else {},
+    })
 
 
 # ============================================================================
-# SERVER BAŞLATMA
+# BAŞLATMA
 # ============================================================================
+
+def init_app():
+    """Veritabanını hazırlar, demo hesaplarını oluşturur."""
+    db.init_database()
+    conn = db.connect()
+    security.ensure_demo_accounts(conn)
+    conn.close()
+
 
 def port_in_use(port):
     import socket
@@ -902,35 +610,30 @@ if __name__ == '__main__':
         print("       Eski pencereyi kapatip tekrar deneyin.")
         raise SystemExit(1)
 
-    # Veritabanını başlat
-    init_database()
-
-    # Modeli yükle
-    if load_model_and_preprocessing():
-        # Model warm-up (ilk tahmin yavaş olmasın diye)
-        print("\n[...] Model warm-up yapiliyor...")
-        try:
-            dummy_input = np.zeros((1, WINDOW_SIZE, model.input_shape[-1]), dtype=np.float32)
-            _ = model.predict(dummy_input, verbose=0)
-            mc_dropout_predict(model, dummy_input)
-            print("  [OK] Model warm-up tamamlandi")
-        except Exception as e:
-            print(f"  [WARN] Warm-up hatasi (onemli degil): {e}")
-
-        url = f"http://localhost:{PORT}"
-        print("\n" + "=" * 60)
-        print(f"[WEB] Web arayuzu: {url}")
-        print(f"[INFO] Model: {MODEL_INFO.get('name')} ({FEATURE_SET}), esik {OPTIMAL_THRESHOLD}")
-        print("[INFO] Cikmak icin: CTRL+C")
-        print("=" * 60 + "\n")
-
-        if os.environ.get('SEPSIS_OPEN_BROWSER') == '1':
-            import threading
-            import webbrowser
-            threading.Timer(1.5, lambda: webbrowser.open(url)).start()
-
-        # debug=False performansı artırır (TensorFlow reloading yapmaz)
-        app.run(debug=False, host=HOST, port=PORT, threaded=True)
-    else:
+    init_app()
+    if not ml.load_model_and_preprocessing():
         print("\n[FAIL] Sunucu baslatilamadi. Model yukleme hatasi!")
         raise SystemExit(1)
+
+    print("\n[...] Model warm-up yapiliyor...")
+    try:
+        ml.warm_up()
+        print("  [OK] Model warm-up tamamlandi")
+    except Exception as e:
+        print(f"  [WARN] Warm-up hatasi (onemli degil): {e}")
+
+    url = f"http://localhost:{PORT}"
+    print("\n" + "=" * 60)
+    print(f"[WEB] Web arayuzu: {url}")
+    print(f"[INFO] Model: {MODEL_INFO.get('name')} ({FEATURE_SET}), esik {OPTIMAL_THRESHOLD}")
+    if security.demo_enabled():
+        print("[INFO] Demo hesaplari: " + ", ".join(f"{a['username']} / {a['password']}" for a in security.DEMO_ACCOUNTS))
+    print("[INFO] Cikmak icin: CTRL+C")
+    print("=" * 60 + "\n")
+
+    if os.environ.get('SEPSIS_OPEN_BROWSER') == '1':
+        import threading
+        import webbrowser
+        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+
+    app.run(debug=False, host=HOST, port=PORT, threaded=True)

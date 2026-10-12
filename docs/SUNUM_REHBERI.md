@@ -3,7 +3,8 @@
 ## Sunumdan önce (5 dakika)
 
 1. **`sistem_kontrol.bat`** → sonunda “TÜM KONTROLLER BAŞARILI” yazmalı.
-2. **`baslat.bat`** → ~20 sn sonra tarayıcı açılır. Siyah pencereyi **kapatmayın**, sunucu odur.
+2. **`baslat.bat`** → ~20 sn sonra tarayıcıda giriş ekranı açılır. Siyah pencereyi **kapatmayın**, sunucu odur.
+   Giriş ekranındaki demo hesaplarına tıklayınca bilgiler dolar: `hemsire / Hemsire123`, `doktor / Doktor123`, `yonetici / Yonetici123`.
 3. Demo hastalar listede yoksa: `py -3.10 scripts/demo_hastalari.py`, sonra sayfayı yenileyin.
 4. Projektör karanlıksa sol alttaki **Tema** düğmesiyle koyu moda geçin.
 
@@ -31,6 +32,9 @@
 - Ezberlemeye karşı Dropout 0.4, L2 ve girdi gürültüsü.
 
 ### 4. Canlı demo (3 dk)
+0. **Roller** (hocanın istediği): önce **hemşire** olarak girin → veri girin; alarm onaylayamadığını gösterin.
+   Çıkış yapıp **doktor** olarak girin → Alarmlar'da not yazıp onaylayın, bir hastayı taburcu edin (arşive düşer).
+   **Yönetici** olarak girin → Kullanıcılar (rol tablosu), Denetim kayıtları (kim ne yaptı), Veritabanı (tablolar ve ilişkiler).
 1. **Genel Bakış**: hastalar riske göre sıralı; güvenilirlik sütunu.
 2. **Mehmet Kaya (kötüleşen)**: risk trendi 12 saatte %1.5'ten %37.6'ya çıkıyor. Gölgeli alan belirsizlik.
    Sağ panel: skor, güvenilirlik halkası, “Neden?” listesi.

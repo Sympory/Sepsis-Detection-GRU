@@ -433,6 +433,87 @@ button { font: inherit; color: inherit; cursor: pointer; background: none; borde
 .spinner { width: 24px; height: 24px; margin: 24px auto; border-radius: 50%; border: 3px solid var(--border); border-top-color: var(--primary); animation: spin 700ms linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ---------- Roles & user card ---------- */
+.nav-section { margin: 16px 12px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3); }
+.user-card { display: flex; align-items: center; gap: 10px; margin: 0 12px 8px; padding: 10px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
+.user-card .avatar { width: 32px; height: 32px; font-size: 12px; }
+.user-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.user-info strong { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-card .icon-btn { padding: 4px; display: inline-flex; }
+.user-card .icon-btn svg { width: 16px; height: 16px; }
+.role-badge { display: inline-block; align-self: flex-start; font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--muted-soft); color: var(--text-2); white-space: nowrap; }
+.role-badge.role-doctor { background: rgba(37, 99, 235, 0.12); color: var(--risk-low); }
+.role-badge.role-nurse { background: var(--primary-soft); color: var(--primary); }
+.role-badge.role-admin { background: var(--warn-soft); color: var(--risk-moderate); }
+
+/* ---------- Tabs & filters ---------- */
+.tabs { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
+.tab { padding: 5px 12px; border-radius: 6px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.tab.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.filters { justify-content: flex-start; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); }
+.card-foot { padding: 12px 20px; display: flex; justify-content: center; }
+.card-foot:empty, .card-foot:has(> [hidden]:only-child) { display: none; }
+
+/* ---------- Alarms ---------- */
+.alarm-row { display: grid; grid-template-columns: minmax(200px, 1.2fr) auto minmax(260px, 1.5fr); align-items: center; gap: 16px; padding: 14px 20px; border-bottom: 1px solid var(--border); }
+.alarm-row:last-child { border-bottom: 0; }
+.alarm-row .person.clickable { cursor: pointer; }
+.alarm-risk { display: flex; align-items: center; gap: 10px; }
+.ack-form { display: flex; gap: 8px; }
+.ack-form input { flex: 1; min-width: 0; padding: 6px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
+.ack-done { font-size: 12px; }
+.alarm-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--risk-high); vertical-align: middle; margin-left: 4px; }
+.patient-alarm { justify-content: space-between; margin-bottom: 0; }
+.patient-alarm .ack-form { min-width: 320px; }
+.entry-locked .empty { padding: 32px 20px; }
+
+/* ---------- Timeline (patient history) ---------- */
+.timeline { display: flex; flex-direction: column; max-height: 420px; overflow-y: auto; }
+.timeline-item { display: grid; grid-template-columns: 110px 190px 1fr; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--border); font-size: 13px; align-items: baseline; }
+.timeline-item:last-child { border-bottom: 0; }
+.timeline-item.failed { background: var(--danger-soft); }
+.timeline-time { font-family: var(--mono); font-size: 12px; color: var(--text-3); }
+.timeline-who { color: var(--text-2); }
+.timeline-what { color: var(--text-2); }
+.timeline-what strong { color: var(--text); margin-right: 4px; }
+
+/* ---------- Admin ---------- */
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.role-select { padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font: inherit; font-size: 13px; }
+.row-failed td { background: var(--danger-soft); }
+.link-plain { color: var(--primary); cursor: pointer; font-weight: 500; }
+.perm-table td:not(:first-child), .perm-table th:not(:first-child) { text-align: center; width: 110px; }
+.perm-table .yes { color: var(--risk-very-low); font-weight: 700; }
+.perm-table .no { color: var(--text-3); }
+.er { margin: 0; padding: 20px; font-family: var(--mono); font-size: 13px; line-height: 1.6; color: var(--text-2); overflow-x: auto; }
+.schema-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; padding: 20px; }
+.schema-table { border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.schema-name { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 8px 12px; background: var(--surface-2); border-bottom: 1px solid var(--border); font-weight: 600; }
+.schema-table ul { list-style: none; padding: 8px 12px; display: grid; gap: 3px; font-size: 12px; color: var(--text-2); }
+
+/* ---------- Outcome modal ---------- */
+fieldset.field { border: 0; padding: 0; margin: 0; }
+.choice-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0; }
+.choice { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer; }
+.choice:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.text-danger { color: var(--risk-high); font-weight: 600; }
+
+/* ---------- Login ---------- */
+.login-page { display: grid; place-items: center; min-height: 100vh; padding: 16px; }
+.login-wrap { width: 100%; max-width: 400px; }
+.login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); padding: 28px; display: flex; flex-direction: column; gap: 14px; }
+.login-brand { padding: 0 0 8px; }
+.login-card h1 { font-size: 20px; letter-spacing: -0.01em; }
+.login-card .banner { margin: 0; }
+#login-form { display: flex; flex-direction: column; gap: 14px; }
+#login-form .btn { width: 100%; }
+.demo-accounts { border-top: 1px solid var(--border); padding-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+.demo-title { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.demo-account { display: grid; grid-template-columns: 80px 1fr auto; align-items: center; gap: 8px; width: 100%; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface-2); font-size: 13px; text-align: left; }
+.demo-account:hover { border-color: var(--primary); }
+.login-foot { text-align: center; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1180px) {
     .detail-grid { grid-template-columns: 1fr; }
@@ -441,6 +522,11 @@ button { font: inherit; color: inherit; cursor: pointer; background: none; borde
 @media (max-width: 900px) {
     .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     #view-model-info .grid-2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+    .alarm-row { grid-template-columns: 1fr; }
+    .timeline-item { grid-template-columns: 1fr; gap: 2px; }
+    .patient-alarm .ack-form { min-width: 0; width: 100%; }
 }
 @media (max-width: 760px) {
     .sidebar { position: fixed; z-index: 40; transform: translateX(-100%); transition: transform 200ms; box-shadow: var(--shadow-lg); }

@@ -41,7 +41,17 @@ ayrıca **bu tahminin ne kadar güvenilir olduğunu** hesaplar ve gerekçeleriyl
 ### Windows (önerilen)
 
 1. **`baslat.bat`** dosyasına çift tıklayın.
-2. ~20 saniye sonra tarayıcıda `http://localhost:5000` açılır.
+2. ~20 saniye sonra tarayıcıda `http://localhost:5000` giriş ekranı açılır.
+3. Demo hesaplarından biriyle giriş yapın (giriş ekranında tıklayınca doldurulur):
+
+| Rol | Kullanıcı adı | Şifre |
+|-----|---------------|-------|
+| Yönetici | `yonetici` | `Yonetici123` |
+| Doktor | `doktor` | `Doktor123` |
+| Hemşire | `hemsire` | `Hemsire123` |
+
+> Demo hesapları ilk açılışta otomatik oluşur. Gerçek kullanımda `SEPSIS_DEMO_ACCOUNTS=0` ile kapatılır,
+> kullanıcılar yönetici panelinden eklenir.
 
 Sunumdan önce her şeyin çalıştığını doğrulamak için **`sistem_kontrol.bat`**:
 
@@ -54,6 +64,11 @@ Sunumdan önce her şeyin çalıştığını doğrulamak için **`sistem_kontrol
   [OK] Normal hasta tahmini — skor %2.5, Çok Düşük
   [OK] Septik hasta tahmini — skor %37.0, Çok Yüksek
   [OK] Model septik hastaya daha yüksek skor veriyor
+  [OK] Hemşire alarm onaylayamaz
+  [OK] Yönetici veri giremez
+  [OK] Denetim kaydı silinemez
+  ...
+47/47 kontrol geçti.
 TÜM KONTROLLER BAŞARILI — uygulama sunuma hazır.
 ```
 
@@ -169,18 +184,100 @@ Test setinde model kararlı olduğunda doğruluk %61, kararsız olduğunda %45't
 
 ---
 
+## 👥 Kullanıcılar, Roller ve Denetim
+
+Her istek oturum ve rol kontrolünden geçer. Rol bazlı yetkiler `security.py → PERMISSIONS` içinde tek yerde tanımlıdır.
+
+| İşlem | Hemşire | Doktor | Yönetici |
+|-------|:------:|:------:|:-------:|
+| Hasta listesi, risk, model bilgisi | ✓ | ✓ | ✓ |
+| Hasta kabul, saatlik vital/lab girişi | ✓ | ✓ | — |
+| Alarm onayı (klinik not zorunlu) | — | ✓ | — |
+| Taburcu / yeniden kabul (arşiv), sepsis sonucunu işaretleme | — | ✓ | — |
+| Kalıcı silme | — | — | ✓ |
+| Kullanıcı ekleme, rol değiştirme, kilit açma, şifre sıfırlama | — | — | ✓ |
+| Tüm denetim kayıtları, veritabanı paneli, veri seti dışa aktarma | — | — | ✓ |
+| Hastanın kayıt geçmişi (kim, ne zaman, ne girdi) | ✓ | ✓ | ✓ |
+
+**Güvenlik:**
+- Şifreler tuzlu **scrypt** hash olarak saklanır; şifre kuralı en az 8 karakter, harf ve rakam.
+- Oturum token'ı **HttpOnly, SameSite=Strict** çerezde tutulur, veritabanında yalnızca SHA-256 özeti saklanır.
+- **30 dakika** işlem yapılmazsa oturum kapanır; **5 hatalı** girişte hesap **15 dakika** kilitlenir.
+- Proje klasöründeki dosyalar (veritabanı, `.env`, modeller) tarayıcıdan erişilemez.
+
+**Denetim kaydı (`audit_logs`):** giriş/çıkış, başarısız giriş, hesap kilidi, yetkisiz deneme, hasta kabul/taburcu/silme,
+veri girişi (üzerine yazmada eski ve yeni değerler), alarm açılması ve onayı, kullanıcı işlemleri. Her kayıtta zaman,
+kullanıcı, rol, IP ve ilgili hasta tutulur. Kayıtlar **SQL tetikleyicileriyle değiştirilemez ve silinemez**.
+
+## 🗄️ Veritabanı (SQLite, normalize)
+
+```
+users ──< sessions
+  │
+  ├──< audit_logs                (UPDATE/DELETE tetikleyiciyle engelli)
+  │
+patients ──< observations ──< measurements     (her ölçüm ayrı satır)
+   │              │
+   │              └──── predictions            (1–1: skor, risk, güvenilirlik, model sürümü)
+   ├──< alarms                                 (onaylayan, zaman, klinik not)
+   └──── outcomes                              (1–1: doktorun işaretlediği sepsis sonucu)
+```
+
+| Tablo | İçerik | Kısıtlar |
+|-------|--------|----------|
+| `users` | Hesaplar | `username` UNIQUE, `role` CHECK (admin/doctor/nurse) |
+| `sessions` | Açık oturumlar | token SHA-256, `user_id` → users (CASCADE) |
+| `patients` | Hastalar | `patient_id` UNIQUE, `age` CHECK 0–120, `status` CHECK (active/discharged) |
+| `observations` | Saatlik kayıt | UNIQUE(hasta, saat), `entered_by` → users |
+| `measurements` | Ölçüm değerleri | PK(kayıt, değişken) |
+| `predictions` | Model çıktısı | kayıt başına bir tahmin, model sürümüyle |
+| `alarms` | Yüksek risk uyarıları | `status` CHECK (open/acknowledged), `acknowledged_by` → users |
+| `outcomes` | Gerçek sonuç (veri seti etiketi) | PK = FK → patients (1–1), `sepsis` CHECK (yes/no/unknown) |
+| `audit_logs` | Denetim kaydı | değiştirilemez |
+
+- Yabancı anahtarlar açık: hasta kalıcı silinince ölçümleri, tahminleri ve alarmları CASCADE ile silinir; denetim kaydı kalır.
+- Eski sürümün veritabanı (`hourly_data`, ölçümler JSON metin) ilk açılışta **otomatik yedeklenip** yeni şemaya taşınır.
+- Yönetici panelindeki **Veritabanı** sayfası tabloları, kayıt sayılarını ve ilişkileri gösterir.
+
+### Kullanımdan veri seti toplama
+
+Doktor hastayı taburcu ederken **gerçek sonucu** işaretler: sepsis tanısı kondu mu (Evet / Hayır / Belirsiz) ve evetse
+klinik başlangıç saati. Sonuç sonradan düzeltilebilir (ör. kültür sonucu geç geldiyse). Böylece sistem kullanıldıkça
+etiketli yerel veri birikir.
+
+Yönetici **Veritabanı → CSV indir** ile (ya da `py -3.10 scripts/veri_seti_disa_aktar.py`) bu veriyi dışa aktarır:
+- Yalnızca taburcu edilmiş ve sonucu Evet/Hayır işaretlenmiş hastalar
+- **Kimlik bilgisi yok:** ad ve protokol no yerine `L00001` gibi sıra numarası
+- **PhysioNet 2019 formatı**, aynı etiket kuralı (klinik başlangıçtan 6 saat önce `SepsisLabel = 1`)
+
+Dosya `data/train.csv` ile birleştirilip istenirse model yeniden eğitilebilir; yeniden eğitim otomatik yapılmaz.
+
 ## 🌐 Web Uygulaması
 
 ### API
 
+Tüm `/api/*` uçları (giriş ve sağlık kontrolü hariç) oturum ister; parantez içi gereken izindir.
+
 | Metot | Uç nokta | Açıklama |
 |-------|----------|----------|
-| GET | `/` | Arayüz |
-| GET | `/api/patients` | Hastalar ve son risk/güvenilirlik |
-| POST | `/api/patients` | Yeni hasta |
-| GET | `/api/patients/<id>` | Hasta detayı ve saatlik kayıtlar |
-| POST | `/api/patients/<id>/hourly-data` | Saatlik veri ekle → tahmin + güvenilirlik |
-| DELETE | `/api/patients/<id>` | Hasta sil |
+| GET | `/`, `/login` | Arayüz (oturum yoksa giriş ekranına yönlendirir) |
+| POST | `/api/auth/login`, `/api/auth/logout` | Giriş / çıkış |
+| GET | `/api/auth/me` | Oturumdaki kullanıcı ve izinleri |
+| POST | `/api/auth/change-password` | Kendi şifresini değiştirme |
+| GET | `/api/patients?status=active\|discharged` | Hastalar, son risk, açık alarm sayısı |
+| POST | `/api/patients` | Hasta kabul (hemşire, doktor) |
+| GET | `/api/patients/<id>` | Hasta detayı, saatlik kayıtlar, açık alarm |
+| POST | `/api/patients/<id>/hourly-data` | Saatlik veri → tahmin + güvenilirlik (+ alarm) |
+| POST | `/api/patients/<id>/discharge`, `/readmit` | Taburcu (sonuç zorunlu) / yeniden kabul (doktor) |
+| DELETE | `/api/patients/<id>` | Kalıcı silme (yönetici) |
+| GET | `/api/patients/<id>/history` | Hastanın denetim geçmişi |
+| GET | `/api/alarms?status=open\|acknowledged` | Alarmlar |
+| POST | `/api/alarms/<id>/acknowledge` | Alarm onayı + klinik not (doktor) |
+| GET/POST/PATCH | `/api/users` | Kullanıcı yönetimi (yönetici) |
+| GET | `/api/audit-logs` | Denetim kayıtları, filtreli (yönetici) |
+| PUT | `/api/patients/<id>/outcome` | Sepsis sonucunu düzelt (doktor) |
+| GET | `/api/admin/db-stats` | Tablo kayıt sayıları, veri seti özeti (yönetici) |
+| GET | `/api/admin/dataset.csv` | Anonim, etiketli veri seti (yönetici) |
 | GET | `/api/model-info` | Aktif model, metrikler, kalibrasyon istatistikleri |
 | GET | `/api/health` | Sistem durumu |
 
@@ -227,11 +324,14 @@ Test setinde model kararlı olduğunda doğruluk %61, kararsız olduğunda %45't
 Tarayıcı (index.html, script.js, style.css)
         │  JSON / REST
         ▼
-Flask API (app.py) ──── SQLite (patients.db)
+Flask API (app.py)
         │
-        ├── features.py      → ileri doldurma, ölçüm maskeleri, ölçekleme
-        ├── GRU modeli       → models/v3/model.keras
-        └── reliability.py   → MC-Dropout, tamlık, kalibrasyon, güvenilirlik skoru
+        ├── security.py      → giriş, oturum, rol bazlı yetki
+        ├── db.py            → SQLite şeması, taşıma, sorgular, denetim kaydı ── patients.db
+        └── ml_service.py    → tahmin
+              ├── features.py     → ileri doldurma, ölçüm maskeleri, ölçekleme
+              ├── GRU modeli      → models/v3/model.keras
+              └── reliability.py  → MC-Dropout, tamlık, kalibrasyon, güvenilirlik skoru
 ```
 
 ### Model (v3)
@@ -336,17 +436,22 @@ Ayrıntılar: [docs/PROJE_PLANI_6_HAFTA.md](docs/PROJE_PLANI_6_HAFTA.md) · Mima
 ```
 ├── baslat.bat                  # Tek tıkla başlatma (Windows)
 ├── sistem_kontrol.bat / .py    # Uçtan uca test
-├── app.py                      # Flask API + tahmin
+├── app.py                      # Flask API rotaları
+├── security.py                 # Giriş, oturum, roller ve izinler
+├── db.py                       # SQLite şeması, taşıma, sorgular, denetim kaydı
+├── ml_service.py               # Model yükleme ve tahmin
 ├── config.py                   # Model seçimi, eşikler, risk seviyeleri
 ├── features.py                 # v3 özellik mühendisliği (eğitim ve uygulama ortak)
 ├── reliability.py              # Güvenilirlik skoru, MC-Dropout
-├── index.html / script.js / style.css
+├── index.html / script.js / style.css   # Uygulama arayüzü
+├── login.html / login.js       # Giriş ekranı
 │
 ├── scripts/
 │   ├── train_v3.py             # v3 eğitimi + kalibrasyon + değerlendirme
 │   ├── baseline_lightgbm.py    # Karşılaştırma modeli
 │   ├── fit_calibration.py      # Eski model için kalibrasyon
-│   └── demo_hastalari.py       # Sunum için örnek hastalar
+│   ├── demo_hastalari.py       # Sunum için örnek hastalar
+│   └── veri_seti_disa_aktar.py # Uygulamada biriken etiketli veriyi CSV'ye aktarır
 │
 ├── models/
 │   ├── v3/                     # Aktif model, dönüştürücü, kalibratör, grafikler

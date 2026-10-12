@@ -54,7 +54,35 @@
                 <svg viewBox="0 0 24 24"><path d="M21 10h-2V7a2 2 0 0 0-2-2h-3V3h-4v2H7a2 2 0 0 0-2 2v3H3v4h2v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3h2zM9 13a1.5 1.5 0 1 1 1.5-1.5A1.5 1.5 0 0 1 9 13zm6 0a1.5 1.5 0 1 1 1.5-1.5A1.5 1.5 0 0 1 15 13z"/></svg>
                 Model &amp; Güvenilirlik
             </button>
+
+            <div class="nav-section" data-perm="users.manage">Yönetim</div>
+            <button class="nav-item" data-view="users" data-perm="users.manage" onclick="switchView('users')">
+                <svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-3 0-8 1.5-8 4.5V21h16v-2.5c0-3-5-4.5-8-4.5z"/></svg>
+                Kullanıcılar
+            </button>
+            <button class="nav-item" data-view="audit" data-perm="audit.view" onclick="switchView('audit')">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm-1 7V3.5L18.5 9zM8 13h8v2H8zm0 4h8v2H8zm0-8h3v2H8z"/></svg>
+                Denetim kayıtları
+            </button>
+            <button class="nav-item" data-view="database" data-perm="audit.view" onclick="switchView('database')">
+                <svg viewBox="0 0 24 24"><path d="M12 2C7.6 2 4 3.3 4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5c0-1.7-3.6-3-8-3zm0 2c3.9 0 6 1.1 6 1s-2.1 1-6 1-6-1-6-1 2.1-1 6-1zm6 15c0 .2-2.1 1-6 1s-6-.8-6-1v-2.3c1.5.8 3.7 1.3 6 1.3s4.5-.5 6-1.3zm0-4.5c0 .2-2.1 1-6 1s-6-.8-6-1v-2.3c1.5.8 3.7 1.3 6 1.3s4.5-.5 6-1.3zm0-4.5c0 .2-2.1 1-6 1s-6-.8-6-1V7.7C7.5 8.5 9.7 9 12 9s4.5-.5 6-1.3z"/></svg>
+                Veritabanı
+            </button>
         </nav>
+
+        <div class="user-card">
+            <div class="avatar" id="user-avatar">?</div>
+            <div class="user-info">
+                <strong id="user-name">—</strong>
+                <span class="role-badge" id="user-role">—</span>
+            </div>
+            <button class="icon-btn" title="Şifre değiştir" aria-label="Şifre değiştir" onclick="showPasswordModal()">
+                <svg viewBox="0 0 24 24"><path d="M7 14a2 2 0 1 1 2-2 2 2 0 0 1-2 2zm5.6-4A6 6 0 1 0 12.6 14H17v4h4v-4h2v-4z"/></svg>
+            </button>
+            <button class="icon-btn" title="Çıkış" aria-label="Çıkış" onclick="logout()">
+                <svg viewBox="0 0 24 24"><path d="M10 17l1.4-1.4-2.6-2.6H20v-2H8.8l2.6-2.6L10 7l-5 5zm-6 4h8v-2H4V5h8V3H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2z"/></svg>
+            </button>
+        </div>
 
         <div class="sidebar-foot">
             <div class="status" id="model-status"><span class="status-dot"></span><span id="model-status-text">Bağlanıyor…</span></div>
@@ -77,7 +105,7 @@
             </div>
             <div class="topbar-actions">
                 <span class="clock" id="clock">--:--</span>
-                <button class="btn btn-primary" onclick="showAddPatientModal()">
+                <button class="btn btn-primary" data-perm="patients.create" onclick="showAddPatientModal()">
                     <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/></svg>
                     Yeni Hasta
                 </button>
@@ -133,13 +161,16 @@
         <section class="view" id="view-patients">
             <div class="card">
                 <div class="card-head">
-                    <h2>Tüm hastalar</h2>
+                    <div class="tabs" role="tablist">
+                        <button class="tab active" data-status="active" onclick="setPatientStatus('active')">Yatan hastalar</button>
+                        <button class="tab" data-status="discharged" onclick="setPatientStatus('discharged')">Arşiv (taburcu)</button>
+                    </div>
                     <input type="search" class="search" id="patient-search" placeholder="Ad veya ID ara…" oninput="renderAllPatients()">
                 </div>
                 <div class="table-wrap">
                     <table class="table">
                         <thead>
-                            <tr><th>Hasta</th><th>ID</th><th>Yaş</th><th>Cinsiyet</th><th>Son risk</th><th>Güvenilirlik</th><th>Kayıt</th><th></th></tr>
+                            <tr><th>Hasta</th><th>ID</th><th>Yaş</th><th>Cinsiyet</th><th>Son risk</th><th>Güvenilirlik</th><th>Kayıt</th><th>Durum</th></tr>
                         </thead>
                         <tbody id="all-patients-body">
                             <tr><td colspan="8"><div class="spinner"></div></td></tr>
@@ -157,11 +188,10 @@
                     <h2 id="detail-name">—</h2>
                     <p id="detail-meta">—</p>
                 </div>
-                <div class="patient-head-actions">
-                    <button class="btn btn-ghost" onclick="switchView('patients')">← Liste</button>
-                    <button class="btn btn-danger-ghost" onclick="deleteCurrentPatient()">Sil</button>
-                </div>
+                <div class="patient-head-actions" id="patient-actions"></div>
             </div>
+
+            <div id="patient-alarm"></div>
 
             <div class="card">
                 <div class="card-head">
@@ -173,7 +203,10 @@
 
             <div class="detail-grid">
                 <!-- Left: data entry -->
-                <div class="card entry-card">
+                <div class="card entry-locked" id="entry-locked" hidden>
+                    <div class="empty"><h3 id="entry-locked-title">Veri girişi kapalı</h3><p id="entry-locked-text"></p></div>
+                </div>
+                <div class="card entry-card" id="entry-card">
                     <div class="card-head">
                         <h2>Saatlik veri girişi</h2>
                         <button type="button" class="btn btn-ghost btn-sm" onclick="copyLastVitals()" id="btn-copy-last" disabled>Son saati kopyala</button>
@@ -226,19 +259,88 @@
                 <div class="card-head"><h2>Saatlik kayıtlar</h2></div>
                 <div class="table-wrap">
                     <table class="table">
-                        <thead><tr><th>Saat</th><th>Vital bulgular</th><th>Skor</th><th>Risk</th><th>Güvenilirlik</th><th></th></tr></thead>
+                        <thead><tr><th>Saat</th><th>Vital bulgular</th><th>Skor</th><th>Risk</th><th>Güvenilirlik</th><th>Giren</th><th></th></tr></thead>
                         <tbody id="hourly-history"></tbody>
                     </table>
                 </div>
+            </div>
+
+            <div class="card" data-perm="history.view">
+                <div class="card-head">
+                    <h2>Kayıt geçmişi</h2>
+                    <span class="legend-note">Bu hasta için kim, ne zaman, ne yaptı — denetim kaydından</span>
+                </div>
+                <div id="patient-history" class="timeline"></div>
             </div>
         </section>
 
         <!-- ===== ALERTS ===== -->
         <section class="view" id="view-alerts">
             <div class="card">
-                <div class="card-head"><h2>Aktif alarmlar</h2></div>
+                <div class="card-head">
+                    <div class="tabs" role="tablist">
+                        <button class="tab active" data-alarm="open" onclick="setAlarmStatus('open')">Açık alarmlar</button>
+                        <button class="tab" data-alarm="acknowledged" onclick="setAlarmStatus('acknowledged')">Onaylananlar</button>
+                    </div>
+                    <span class="legend-note" id="alarm-role-note"></span>
+                </div>
                 <div id="alerts-body" class="alerts"></div>
             </div>
+            <div class="card">
+                <div class="card-head"><h2>Takip gerektiren</h2><span class="legend-note">Yetersiz veri veya düşük güvenilirlik</span></div>
+                <div id="followup-body" class="alerts"></div>
+            </div>
+        </section>
+
+        <!-- ===== USERS (admin) ===== -->
+        <section class="view" id="view-users">
+            <div class="card">
+                <div class="card-head">
+                    <h2>Kullanıcılar</h2>
+                    <button class="btn btn-primary" onclick="showAddUserModal()">Kullanıcı ekle</button>
+                </div>
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead><tr><th>Ad soyad</th><th>Kullanıcı adı</th><th>Rol</th><th>Durum</th><th>Son giriş</th><th></th></tr></thead>
+                        <tbody id="users-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-head"><h2>Rol yetkileri</h2></div>
+                <div class="table-wrap" id="permissions-table"></div>
+            </div>
+        </section>
+
+        <!-- ===== AUDIT (admin) ===== -->
+        <section class="view" id="view-audit">
+            <div class="card">
+                <div class="card-head filters">
+                    <input type="search" class="search" id="audit-user" placeholder="Kullanıcı adı" onchange="loadAudit()">
+                    <select id="audit-action" class="search" onchange="loadAudit()">
+                        <option value="">Tüm işlemler</option>
+                        <option value="auth.">Giriş / çıkış</option>
+                        <option value="patient.">Hasta kabul / taburcu / silme</option>
+                        <option value="observation.">Veri girişi</option>
+                        <option value="alarm.">Alarmlar</option>
+                        <option value="user.">Kullanıcı yönetimi</option>
+                    </select>
+                    <label class="check"><input type="checkbox" id="audit-failed" onchange="loadAudit()"> Yalnızca başarısız</label>
+                    <span class="legend-note" id="audit-count"></span>
+                </div>
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead><tr><th>Zaman</th><th>Kullanıcı</th><th>İşlem</th><th>Hasta</th><th>Ayrıntı</th><th>IP</th></tr></thead>
+                        <tbody id="audit-body"></tbody>
+                    </table>
+                </div>
+                <div class="card-foot"><button class="btn btn-ghost" id="audit-more" onclick="loadAudit(true)" hidden>Daha fazla yükle</button></div>
+            </div>
+        </section>
+
+        <!-- ===== DATABASE (admin) ===== -->
+        <section class="view" id="view-database">
+            <div id="database-body"><div class="spinner"></div></div>
         </section>
 
         <!-- ===== MODEL INFO ===== -->
@@ -284,6 +386,89 @@
             <div class="modal-foot">
                 <button type="button" class="btn btn-ghost" onclick="closeAddPatientModal()">İptal</button>
                 <button type="submit" class="btn btn-primary">Hasta ekle</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="modal-add-user" hidden>
+    <div class="modal-box" role="dialog" aria-labelledby="user-modal-title">
+        <div class="modal-head">
+            <h3 id="user-modal-title">Yeni kullanıcı</h3>
+            <button class="icon-btn" onclick="closeModal('modal-add-user')" aria-label="Kapat">&times;</button>
+        </div>
+        <form onsubmit="addUser(event)">
+            <div class="modal-body">
+                <label class="field"><span class="field-label"><span>Ad soyad <em>*</em></span></span><input type="text" id="new-user-name" required></label>
+                <div class="field-row">
+                    <label class="field"><span class="field-label"><span>Kullanıcı adı <em>*</em></span></span><input type="text" id="new-user-username" required autocomplete="off"></label>
+                    <label class="field"><span class="field-label"><span>Rol <em>*</em></span></span>
+                        <select id="new-user-role"><option value="nurse">Hemşire</option><option value="doctor">Doktor</option><option value="admin">Yönetici</option></select>
+                    </label>
+                </div>
+                <label class="field"><span class="field-label"><span>Geçici şifre <em>*</em></span></span><input type="password" id="new-user-password" required autocomplete="new-password">
+                    <span class="field-help">En az 8 karakter, harf ve rakam içermeli</span></label>
+            </div>
+            <div class="modal-foot">
+                <button type="button" class="btn btn-ghost" onclick="closeModal('modal-add-user')">İptal</button>
+                <button type="submit" class="btn btn-primary">Ekle</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="modal-password" hidden>
+    <div class="modal-box" role="dialog" aria-labelledby="pw-modal-title">
+        <div class="modal-head">
+            <h3 id="pw-modal-title">Şifre değiştir</h3>
+            <button class="icon-btn" onclick="closeModal('modal-password')" aria-label="Kapat">&times;</button>
+        </div>
+        <form onsubmit="submitPassword(event)">
+            <div class="modal-body">
+                <p class="small muted" id="pw-modal-desc"></p>
+                <label class="field" id="pw-current-wrap"><span class="field-label">Mevcut şifre</span><input type="password" id="pw-current" autocomplete="current-password"></label>
+                <label class="field"><span class="field-label">Yeni şifre</span><input type="password" id="pw-new" required autocomplete="new-password">
+                    <span class="field-help">En az 8 karakter, harf ve rakam içermeli</span></label>
+            </div>
+            <div class="modal-foot">
+                <button type="button" class="btn btn-ghost" onclick="closeModal('modal-password')">İptal</button>
+                <button type="submit" class="btn btn-primary">Kaydet</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="modal-outcome" hidden>
+    <div class="modal-box" role="dialog" aria-labelledby="outcome-title">
+        <div class="modal-head">
+            <h3 id="outcome-title">Taburcu ve sonuç</h3>
+            <button class="icon-btn" onclick="closeModal('modal-outcome')" aria-label="Kapat">&times;</button>
+        </div>
+        <form onsubmit="submitOutcome(event)">
+            <div class="modal-body">
+                <p class="small muted" id="outcome-desc"></p>
+                <fieldset class="field">
+                    <legend class="field-label"><span>Hastaya sepsis tanısı kondu mu? <em>*</em></span></legend>
+                    <div class="choice-row">
+                        <label class="choice"><input type="radio" name="outcome-sepsis" value="yes" onchange="toggleOnset()"> Evet</label>
+                        <label class="choice"><input type="radio" name="outcome-sepsis" value="no" onchange="toggleOnset()"> Hayır</label>
+                        <label class="choice"><input type="radio" name="outcome-sepsis" value="unknown" onchange="toggleOnset()"> Belirsiz</label>
+                    </div>
+                    <span class="field-help">Bu bilgi ileride modeli yeniden eğitmek için veri setinin etiketi olur. “Belirsiz” işaretlenen hastalar veri setine alınmaz.</span>
+                </fieldset>
+                <label class="field" id="outcome-onset-wrap" hidden>
+                    <span class="field-label"><span>Klinik sepsis başlangıcı (YBÜ saati) <em>*</em></span></span>
+                    <input type="number" id="outcome-onset" min="0" inputmode="numeric">
+                    <span class="field-help">Tanının konduğu / tedavinin başladığı saat (Sepsis-3)</span>
+                </label>
+                <label class="field">
+                    <span class="field-label">Not</span>
+                    <input type="text" id="outcome-note" maxlength="500" placeholder="ör. kan kültüründe E. coli üredi">
+                </label>
+            </div>
+            <div class="modal-foot">
+                <button type="button" class="btn btn-ghost" onclick="closeModal('modal-outcome')">İptal</button>
+                <button type="submit" class="btn btn-primary" id="outcome-submit">Taburcu et</button>
             </div>
         </form>
     </div>

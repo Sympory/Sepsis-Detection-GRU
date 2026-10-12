@@ -167,6 +167,12 @@ $RECYCLE.BIN/
 *.sqlite
 *.sqlite3
 patients.db
+# Otomatik veritabanı yedekleri ve SQLite WAL dosyaları (hasta verisi içerir)
+*.db.yedek-*
+*.db-wal
+*.db-shm
+# Dışa aktarılan yerel veri seti (hasta verisi)
+data/yerel_veriseti*.csv
 data/raw/*
 !data/raw/.gitkeep
 data/processed/*

@@ -58,7 +58,9 @@ her saatlik gecikme riski artırır.
 | **scikit-learn** | İzotonik kalibrasyon, ROC-AUC / PR-AUC metrikleri |
 | **Flask** | Web sunucusu ve REST API |
 | **flask-cors** | Tarayıcı–sunucu iletişim izinleri |
-| **sqlite3** | Hasta ve ölçüm kayıtlarının veritabanında saklanması |
+| **sqlite3** | Normalize veritabanı: kullanıcılar, hastalar, ölçümler, tahminler, alarmlar, denetim kaydı |
+| **Werkzeug** | Şifrelerin güvenli hash'lenmesi (scrypt) |
+| **hashlib / secrets** | Oturum token'ı üretimi ve özetlenmesi |
 | **matplotlib** | Eğitim grafikleri, ROC ve kalibrasyon eğrileri |
 | **LightGBM** | Karşılaştırma için ağaç tabanlı model |
 | **pickle / json** | Model ön işleme nesnelerinin ve sonuçların kaydı |
@@ -108,18 +110,37 @@ Girdi (6 saat × 71 özellik)
 
 ---
 
-## 6. Veritabanı (SQLite)
+## 6. Veritabanı, kullanıcılar ve güvenlik
 
-| Tablo | Sütunlar | İçerik |
-|-------|----------|--------|
-| `patients` | id, patient_id, name, age, gender, admission_time, created_at | Hasta kayıtları |
-| `hourly_data` | id, patient_id (FK), hour, vital_signs, prediction, risk_level, reliability, assessment, timestamp | Saatlik ölçümler ve model sonuçları |
+### Normalize SQLite şeması (8 tablo)
 
-- Hasta–ölçüm arasında **bire-çok ilişki** var (yabancı anahtar).
-- Sorgu hızı için **indeksler** tanımlı.
-- Aynı hasta ve saat için tek kayıt olmasını **UNIQUE kısıtı** sağlıyor.
-- Yeni sütunlar eski veritabanlarına otomatik eklenir (migration).
-- Hasta ekleme, listeleme ve silme ile saatlik kaydın üzerine yazma (**CRUD**) API üzerinden yapılıyor.
+| Tablo | İçerik | Önemli kısıtlar |
+|-------|--------|-----------------|
+| `users` | Kullanıcı hesapları | `username` UNIQUE, `role` CHECK (yönetici/doktor/hemşire) |
+| `sessions` | Açık oturumlar | token SHA-256 özeti, `user_id` → users |
+| `patients` | Hastalar | `patient_id` UNIQUE, yaş CHECK 0–120, durum CHECK (yatıyor/taburcu) |
+| `observations` | Saatlik kayıtlar | UNIQUE(hasta, saat), kaydı giren kullanıcı |
+| `measurements` | Ölçüm değerleri (her değer ayrı satır) | PK(kayıt, değişken) |
+| `predictions` | Model tahmini, risk, güvenilirlik, model sürümü | kayıt başına bir tahmin |
+| `alarms` | Yüksek risk uyarıları | onaylayan doktor, zaman, klinik not |
+| `audit_logs` | Denetim kaydı | **tetikleyicilerle değiştirilemez/silinemez** |
+
+- Yabancı anahtarlar, CASCADE silme, indeksler, bir görünüm (`v_patient_latest`) ve tetikleyiciler (trigger) kullanılıyor.
+- Eski sürümün veritabanı ilk açılışta **otomatik yedeklenip** yeni şemaya taşınıyor.
+
+### Roller
+
+| İşlem | Hemşire | Doktor | Yönetici |
+|-------|:------:|:------:|:-------:|
+| Hasta kabul, saatlik veri girişi | ✓ | ✓ | — |
+| Alarm onayı ve klinik not | — | ✓ | — |
+| Taburcu / arşiv | — | ✓ | — |
+| Kalıcı silme, kullanıcı yönetimi, tüm denetim kayıtları | — | — | ✓ |
+
+### Güvenlik
+- Şifreler tuzlu **scrypt** hash, oturum **HttpOnly** çerez, **30 dk** hareketsizlikte oturum kapanır.
+- **5 hatalı** girişte hesap **15 dk** kilitlenir. Her API ucunda rol kontrolü yapılır, yetkisiz denemeler kaydedilir.
+- Denetim kaydı: giriş/çıkış, başarısız giriş, veri girişi (üzerine yazmada eski ve yeni değerler), alarm, taburcu, silme, kullanıcı işlemleri.
 
 ---
 
@@ -177,14 +198,15 @@ Değerler, eğitimde **hiç görülmemiş 8.066 test hastası** üzerinde ölç�
 | **6** | Doğrulama ve teslim | Farklı hastanede test (A → B), alt grup analizi, rapor |
 
 ### Veritabanı ve uygulama geliştirmeleri
+
+Giriş ekranı, roller, normalize veritabanı ve denetim kaydı **tamamlandı** (Bölüm 6). Kalanlar:
+
 | Geliştirme | Açıklama |
 |------------|----------|
-| **Normalize tablo yapısı** | Ölçümler JSON yerine ayrı `measurements` tablosunda; tahminler ayrı `predictions` tablosunda |
-| **Kullanıcı sistemi** | `users` tablosu, hashlenmiş şifre, oturum yönetimi (kod `auth.py`'de hazır) |
-| **Denetim kaydı** | `audit_logs`: kim, ne zaman, hangi hastaya veri girdi |
-| **Veritabanı sayfası** | Arayüzde tablo yapısı (ER diyagramı) ve örnek SQL sorguları |
-| **ORM** | **SQLAlchemy** ile veritabanı katmanı; ileride PostgreSQL'e geçiş (şema `database/schema.sql`'de hazır) |
-| **Test ve dağıtım** | **pytest** ile birim testleri, **Docker** ile paketleme |
+| **PostgreSQL** | Çok kullanıcılı eşzamanlı yazma için; **SQLAlchemy** ORM ile geçiş (şema `database/schema.sql`'de hazır) |
+| **Hastane entegrasyonu** | HBYS ve laboratuvardan HL7/FHIR ile otomatik veri akışı |
+| **Test ve dağıtım** | **pytest** ile birim testleri, **Docker** ile paketleme, HTTPS |
+| **İki aşamalı doğrulama** | Hastane ağı dışında erişim gerekirse |
 
 **6 hafta sonundaki hedefler:**
 - ROC-AUC 0.83–0.85 (literatürde benzer çalışmalar yaklaşık 0.80–0.85)
