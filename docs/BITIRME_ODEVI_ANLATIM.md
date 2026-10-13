@@ -183,9 +183,10 @@ Düşük standart sapma: sonuç şanslı bir veri bölmesine bağlı değil.
 | SIRS | 0.649 | 0.054 |
 | qSOFA (kısmi) | 0.593 | 0.023 |
 
-Model, hastanelerde bugün kullanılan skorlardan belirgin şekilde iyi. **Dikkat:** Yarışma kazananı 0.36 Utility aldı
-ama **hiç görülmemiş üçüncü bir hastanede**; bizim 0.427 aynı iki hastanenin ayrılmış hastalarında. Doğrudan
-karşılaştırılamaz — dürüstçe söylenmeli. qSOFA/NEWS2 bilinç (GKS) verisi olmadığı için kısmi.
+Model, hastanelerde bugün kullanılan skorlardan belirgin şekilde iyi. **Dikkat:** Yarışma kazananı (Morrill ve ark.)
+0.360 Utility aldı ama **gizli test setinde**: A ve B'nin yayımlanmamış hastaları + hiç yayımlanmamış üçüncü hastane C.
+Bizim 0.427 aynı iki hastanenin ayrılmış hastalarında; doğrudan karşılaştırılamaz — dürüstçe söylenmeli. Hiç görülmemiş
+hastanede bizim Utility'miz 0.28–0.36 (hastaneler arası test), yani yarışma sonuçlarıyla aynı seviyede. qSOFA/NEWS2 bilinç (GKS) verisi olmadığı için kısmi.
 
 ### Hastaneler arası test — `scripts/hastane_arasi_test.py`
 | Test edilen | Eğitim | ROC-AUC | PR-AUC | Utility | Tarama eşiği duyarlılık / özgüllük |

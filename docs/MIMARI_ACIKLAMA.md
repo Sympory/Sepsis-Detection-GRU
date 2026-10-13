@@ -114,7 +114,7 @@ Ağırlık validasyon hastalarında 0.05 adımlarla denenip PR-AUC'yi en yüksek
 **5 katlı çapraz doğrulama:** hibrit 0.842 ± 0.009 (PR-AUC 0.129 ± 0.010), LightGBM 0.840 ± 0.010, MLP 0.820 ± 0.006.
 
 **Klinik skorlarla (test):** NEWS2 kısmi 0.682, SIRS 0.649, qSOFA kısmi 0.593. PhysioNet Utility: hibrit **0.427**, GRU v3 0.358, NEWS2 0.115.
-Utility iç test hastalarında ölçüldü; yarışmanın gizli hastane skoruyla (kazanan 0.36) doğrudan karşılaştırılamaz.
+Utility iç test hastalarında ölçüldü; yarışmanın gizli test seti skoruyla (kazanan 0.36; gizli A/B hastaları + görülmemiş hastane C) doğrudan karşılaştırılamaz.
 
 ---
 

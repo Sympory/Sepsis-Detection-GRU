@@ -1543,7 +1543,7 @@ function renderClinicalComparison(cc) {
                 <thead><tr><th>Yöntem</th><th>ROC-AUC</th><th>PR-AUC</th><th>Utility</th><th>Duyarlılık / özgüllük</th><th>Alarm kuralı</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table></div>
-            <div class="prose"><p><strong>Utility</strong>, PhysioNet 2019 yarışmasının resmi metriğidir: sepsisten 12–6 saat önceki alarmı ödüllendirir, geç veya yanlış alarmı cezalandırır (1 = mükemmel, 0 = hiç alarm vermemek). Yarışma kazananı gizli bir hastanede 0.36 aldı; bizim değer aynı iki hastanenin ayrılmış test hastalarında ölçüldüğü için <strong>doğrudan karşılaştırılamaz</strong>. qSOFA ve NEWS2 bilinç (GKS) verisi olmadığı için kısmidir.</p></div>
+            <div class="prose"><p><strong>Utility</strong>, PhysioNet 2019 yarışmasının resmi metriğidir: sepsisten 12–6 saat önceki alarmı ödüllendirir, geç veya yanlış alarmı cezalandırır (1 = mükemmel, 0 = hiç alarm vermemek). Yarışma kazananı 0.36'yı gizli test setinde aldı (A ve B'nin yayımlanmamış hastaları + hiç görülmemiş üçüncü hastane); bizim değer aynı iki hastanenin ayrılmış test hastalarında ölçüldüğü için <strong>doğrudan karşılaştırılamaz</strong>. Görülmemiş hastanede bizim Utility'miz 0.28–0.36 (hastaneler arası test). qSOFA ve NEWS2 bilinç (GKS) verisi olmadığı için kısmidir.</p></div>
         </div>`;
 }
 

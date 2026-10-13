@@ -180,8 +180,9 @@ Eşikler her modelin kendi eğitim hastanesinde seçildi.
 
 **Utility**, PhysioNet 2019'un resmi metriğidir: sepsisten 12–6 saat önceki alarmı ödüllendirir, geç ve yanlış alarmı
 cezalandırır (1 = mükemmel, 0 = hiç alarm vermemek). Model eşiği validasyonda seçildi. Yarışma kazananı 0.36 aldı ama
-o skor **görülmemiş üçüncü bir hastanede** ölçüldü; bizimki aynı iki hastanenin ayrılmış test hastalarında, bu yüzden
-**doğrudan karşılaştırılamaz**. qSOFA ve NEWS2 bilinç (GKS) verisi olmadığı için kısmi hesaplandı (`scripts/evaluate_clinical.py`).
+o skor **gizli test setinde** ölçüldü (A ve B'nin yayımlanmamış hastaları + hiç yayımlanmamış üçüncü hastane C); bizimki
+aynı iki hastanenin ayrılmış test hastalarında, bu yüzden **doğrudan karşılaştırılamaz**. Hiç görülmemiş hastanede bizim
+Utility'miz 0.28–0.36'ya düşüyor (aşağıda hastaneler arası test). qSOFA ve NEWS2 bilinç (GKS) verisi olmadığı için kısmi hesaplandı (`scripts/evaluate_clinical.py`).
 
 ### İki çalışma noktası
 
