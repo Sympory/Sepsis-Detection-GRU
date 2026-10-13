@@ -558,3 +558,5 @@ fieldset.field { border: 0; padding: 0; margin: 0; }
 
 .check-inline { display: inline-flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; cursor: pointer; }
 .check-inline input { width: auto; margin: 0; }
+
+.public-demo-banner { margin: 12px 24px 0; }

@@ -115,3 +115,14 @@ def test_forbidden_attempt_is_audited(clients, fresh_db):
     n = conn.execute("SELECT COUNT(*) FROM audit_logs WHERE action = 'auth.forbidden' AND success = 0").fetchone()[0]
     conn.close()
     assert n >= 1
+
+
+def test_public_demo_hides_admin(monkeypatch):
+    import security
+    monkeypatch.setenv('SEPSIS_PUBLIC_DEMO', '1')
+    monkeypatch.delenv('SEPSIS_ADMIN_PASSWORD', raising=False)
+    assert 'admin' not in {a['role'] for a in security.visible_demo_accounts()}
+    admin = next(a for a in security.DEMO_ACCOUNTS if a['role'] == 'admin')
+    assert security._demo_password(admin) != admin['password'], 'Herkese açık demoda varsayılan yönetici şifresi kullanılmamalı'
+    monkeypatch.setenv('SEPSIS_ADMIN_PASSWORD', 'gizli-test-sifresi')
+    assert security._demo_password(admin) == 'gizli-test-sifresi'

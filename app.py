@@ -138,7 +138,8 @@ def me():
     user = security.load_user(g.db)
     if not user:
         return fail('Oturum açmanız gerekiyor', 401, code='auth_required')
-    return ok({'user': security.public_user(user), 'session_idle_minutes': security.SESSION_IDLE_MINUTES})
+    return ok({'user': security.public_user(user), 'session_idle_minutes': security.SESSION_IDLE_MINUTES,
+               'public_demo': security.public_demo()})
 
 
 @app.route('/api/auth/change-password', methods=['POST'])
@@ -161,10 +162,9 @@ def change_password():
 
 @app.route('/api/auth/demo-accounts')
 def demo_accounts():
-    if not security.demo_enabled():
-        return ok({'accounts': []})
-    return ok({'accounts': [{'username': a['username'], 'password': a['password'],
-                             'role_label': security.ROLE_LABELS[a['role']]} for a in security.DEMO_ACCOUNTS]})
+    return ok({'public_demo': security.public_demo(),
+               'accounts': [{'username': a['username'], 'password': a['password'],
+                             'role_label': security.ROLE_LABELS[a['role']]} for a in security.visible_demo_accounts()]})
 
 
 # ============================================================================
@@ -642,8 +642,8 @@ if __name__ == '__main__':
     print("\n" + "=" * 60)
     print(f"[WEB] Web arayuzu: {url}")
     print(f"[INFO] Model: {MODEL_INFO.get('name')} ({FEATURE_SET}), esik {OPTIMAL_THRESHOLD}")
-    if security.demo_enabled():
-        print("[INFO] Demo hesaplari: " + ", ".join(f"{a['username']} / {a['password']}" for a in security.DEMO_ACCOUNTS))
+    if security.visible_demo_accounts():
+        print("[INFO] Demo hesaplari: " + ", ".join(f"{a['username']} / {a['password']}" for a in security.visible_demo_accounts()))
     print("[INFO] Cikmak icin: CTRL+C")
     print("=" * 60 + "\n")
 

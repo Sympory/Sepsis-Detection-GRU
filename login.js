@@ -53,6 +53,7 @@ function showError(message) {
 async function loadDemoAccounts() {
     try {
         const d = await (await fetch('/api/auth/demo-accounts')).json();
+        if (d.public_demo) document.getElementById('public-demo-banner').hidden = false;
         if (!d.accounts || !d.accounts.length) return;
         document.getElementById('demo-list').innerHTML = d.accounts.map(a => `
             <button type="button" class="demo-account" data-u="${a.username}" data-p="${a.password}">

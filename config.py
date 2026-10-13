@@ -131,5 +131,5 @@ DB_PATH = os.environ.get('SEPSIS_DB_PATH', os.path.join(PROJECT_ROOT, 'patients.
 
 # ---------- SUNUCU ----------
 HOST = os.environ.get('SEPSIS_HOST', '127.0.0.1')
-PORT = 5000
+PORT = int(os.environ.get('SEPSIS_PORT', '5000'))
 DEBUG = False

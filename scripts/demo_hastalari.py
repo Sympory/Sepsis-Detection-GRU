@@ -68,6 +68,19 @@ def login(app, username, password):
     return client
 
 
+def seed(sepsis_app):
+    """Uygulama ve model yüklüyken eksik demo hastalarını ekler (Hugging Face başlangıcı bunu çağırır)."""
+    nurse = login(sepsis_app.app, 'hemsire', 'Hemsire123')
+    existing = {p['patient_id'] for p in nurse.get('/api/patients?status=all').get_json()['patients']}
+    for info, hours in DEMO_PATIENTS:
+        if info['patient_id'] in existing:
+            continue
+        pid = nurse.post('/api/patients', json=info).get_json()['patient_id']
+        for hour, vitals in hours:
+            r = nurse.post(f'/api/patients/{pid}/hourly-data', json={'hour': hour, 'vital_signs': vitals}).get_json()
+        print(f"Eklendi: {info['name']:<30} son saat {hour}: %{r['prediction'] * 100:5.1f}  {r['risk_level']}", flush=True)
+
+
 def main():
     import app as sepsis_app
     import ml_service as ml
@@ -88,15 +101,10 @@ def main():
     if not ml.load_model_and_preprocessing():
         sys.exit(1)
 
-    for info, hours in DEMO_PATIENTS:
+    for info, _ in DEMO_PATIENTS:
         if info['patient_id'] in existing:
             print(f"Zaten var, atlandı: {info['name']}")
-            continue
-        pid = nurse.post('/api/patients', json=info).get_json()['patient_id']
-        for hour, vitals in hours:
-            r = nurse.post(f'/api/patients/{pid}/hourly-data', json={'hour': hour, 'vital_signs': vitals}).get_json()
-        print(f"Eklendi: {info['name']:<30} son saat {hour}: %{r['prediction'] * 100:5.1f}  {r['risk_level']:<14} "
-              f"güvenilirlik {r['reliability']['score']}")
+    seed(sepsis_app)
 
 
 if __name__ == '__main__':

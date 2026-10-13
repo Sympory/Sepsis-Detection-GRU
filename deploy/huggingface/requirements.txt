@@ -1,0 +1,7 @@
+# Hugging Face Spaces (Linux, Python 3.10). GPU yok: tensorflow-cpu yeterli ve daha küçük.
+tensorflow-cpu==2.10.0
+numpy==1.26.4
+pandas==2.3.3
+scikit-learn==1.7.2
+flask==3.1.2
+flask-cors==6.0.1

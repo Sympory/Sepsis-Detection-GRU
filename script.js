@@ -141,7 +141,9 @@ function errorText(e) { return e.message + (e.details ? ': ' + e.details.join(';
 // ===================== INIT =====================
 document.addEventListener('DOMContentLoaded', async () => {
     try {
-        currentUser = (await api('/api/auth/me')).user;
+        const me = await api('/api/auth/me');
+        currentUser = me.user;
+        document.getElementById('public-demo-banner').hidden = !me.public_demo;
     } catch (e) {
         window.location.href = '/login';
         return;

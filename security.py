@@ -57,6 +57,25 @@ def demo_enabled():
     return os.environ.get('SEPSIS_DEMO_ACCOUNTS', '1') != '0'
 
 
+def public_demo():
+    """İnternette herkese açık demo (ör. Hugging Face): yönetici gizli, uyarı bandı açık."""
+    return os.environ.get('SEPSIS_PUBLIC_DEMO') == '1'
+
+
+def visible_demo_accounts():
+    """Giriş ekranında gösterilen hesaplar. Herkese açık demoda yönetici hesabı gösterilmez."""
+    if not demo_enabled():
+        return []
+    return [a for a in DEMO_ACCOUNTS if not (public_demo() and a['role'] == 'admin')]
+
+
+def _demo_password(acc):
+    # Herkese açık demoda yönetici şifresi gizli ortam değişkeninden gelir; yoksa kimsenin bilmediği rastgele şifre
+    if public_demo() and acc['role'] == 'admin':
+        return os.environ.get('SEPSIS_ADMIN_PASSWORD') or secrets.token_urlsafe(24)
+    return acc['password']
+
+
 # ============================================================================
 # ŞİFRE
 # ============================================================================
@@ -84,7 +103,7 @@ def ensure_demo_accounts(conn):
         return False
     for acc in DEMO_ACCOUNTS:
         conn.execute('INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)',
-                     (acc['username'], hash_password(acc['password']), acc['full_name'], acc['role']))
+                     (acc['username'], hash_password(_demo_password(acc)), acc['full_name'], acc['role']))
     db.audit(conn, None, 'users.demo_created', details={'users': [a['username'] for a in DEMO_ACCOUNTS]})
     conn.commit()
     print("[OK] Demo hesaplari olusturuldu: " + ", ".join(a['username'] for a in DEMO_ACCOUNTS))
