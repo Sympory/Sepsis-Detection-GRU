@@ -268,7 +268,7 @@ birebir aynı (`scripts/enrich_trees.py`). Açıklama, ağırlığı %70 olan Li
 | `config.py` | Model yolları, port, veritabanı yolu (ortam değişkeniyle değiştirilebilir) |
 | `index.html`, `script.js`, `style.css` | Arayüz — saf HTML/CSS/JavaScript, framework yok |
 | `login.html`, `login.js` | Giriş ekranı |
-| `baslat.bat`, `test_et.bat`, `sistem_kontrol.py` | Başlatma ve 58 maddelik sistem kontrolü |
+| `baslat.bat`, `sistem_kontrol.bat` (`sistem_kontrol.py`) | Tek tıkla başlatma ve 58 maddelik sistem kontrolü |
 
 ### Bir değer girildiğinde ne oluyor? (uçtan uca akış)
 1. Hemşire formu doldurur → `script.js` `POST /api/patients/<id>/hourly-data` gönderir.
