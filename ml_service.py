@@ -296,7 +296,26 @@ def _build_legacy_sequence(real_rows, window_size):
     return X_combined.reshape(1, window_size, -1)
 
 
-def get_risk_level(prediction, vital_signs_dict=None):
+# Klinik kurallarda laboratuvar sonuçları her saat ölçülmez: son 24 saatteki en son ölçüm geçerli sayılır.
+# Vital bulgular yalnızca bu saatin değeriyle değerlendirilir.
+LAB_RULE_FEATURES = ('Lactate', 'pH', 'WBC')
+LAB_RULE_VALIDITY_HOURS = 24
+
+
+def rule_inputs(history, hour):
+    """Klinik kurallara giren değerler ve laboratuvar değerinin ölçüldüğü saat."""
+    values = {k: v for k, v in history[-1].items() if k not in LAB_RULE_FEATURES}
+    measured_at = {}
+    for row in sorted(history, key=lambda r: r['Hour']):
+        if row['Hour'] < hour - LAB_RULE_VALIDITY_HOURS:
+            continue
+        for f in LAB_RULE_FEATURES:
+            if row.get(f) not in (None, ''):
+                values[f], measured_at[f] = row[f], row['Hour']
+    return values, measured_at
+
+
+def get_risk_level(prediction, vital_signs_dict=None, measured_at=None):
     """
     Risk seviyesini belirler: (etiket, renk, tetiklenen klinik bayraklar).
 
@@ -313,7 +332,10 @@ def get_risk_level(prediction, vital_signs_dict=None):
         value = float(value)
         hit = value < rule['threshold'] if rule['direction'] == 'below' else value > rule['threshold']
         if hit:
-            flags.append({'feature': feature, 'value': value, 'rule': name, 'points': rule['red_flags']})
+            flag = {'feature': feature, 'value': value, 'rule': name, 'points': rule['red_flags']}
+            if measured_at and feature in measured_at:
+                flag['measured_hour'] = measured_at[feature]
+            flags.append(flag)
 
     points = sum(f['points'] for f in flags)
     adjusted = prediction
@@ -391,7 +413,7 @@ def assess(previous_hours, hour, vital_signs, demographics, transform_notes=None
             assessment['explanation'] = explanation
 
     if assessment['sufficient_data']:
-        risk_text, risk_color, red_flags = get_risk_level(prediction, current)
+        risk_text, risk_color, red_flags = get_risk_level(prediction, *rule_inputs(history, hour))
     else:
         risk_text, risk_color, red_flags = 'Yetersiz Veri', '#6b7280', []
     assessment['red_flags'] = red_flags

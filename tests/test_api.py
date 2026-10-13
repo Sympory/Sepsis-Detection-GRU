@@ -106,3 +106,20 @@ def test_unknown_onset_saved_but_not_exported(ml, clients, patient):
     assert len(csv.strip().splitlines()) == 1, 'Başlangıcı bilinmeyen sepsis hastası veri setine girmemeli'
     ds = clients['admin'].get('/api/admin/db-stats').get_json()['dataset']
     assert ds['sepsis_no_onset'] == 1 and ds['exportable_patients'] == 0
+
+
+def test_clinical_rules_remember_recent_labs(ml, clients, patient):
+    """3. saatte girilen yüksek laktat, 4. saatte tekrar girilmese de klinik kurala girmeli."""
+    nurse = clients['nurse']
+    add(nurse, patient, 3, dict(NORMAL, Lactate=4.0))
+    r = add(nurse, patient, 4, NORMAL).get_json()
+    lact = [f for f in r['reliability']['red_flags'] if f['feature'] == 'Lactate']
+    assert lact and lact[0]['measured_hour'] == 3
+
+
+def test_clinical_rules_forget_old_labs(ml, clients, patient):
+    """24 saatten eski laboratuvar sonucu kurala girmemeli."""
+    nurse = clients['nurse']
+    add(nurse, patient, 1, dict(NORMAL, Lactate=4.0))
+    r = add(nurse, patient, 30, NORMAL).get_json()
+    assert not [f for f in r['reliability']['red_flags'] if f['feature'] == 'Lactate']

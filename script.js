@@ -752,7 +752,7 @@ function renderAssessment(res) {
         }
 
         const items = [];
-        (rel.red_flags || []).forEach(f => items.push(`<li class="flag">Klinik bayrak: ${escapeHtml(FIELD_BY_ID[f.feature]?.label || f.feature)} = ${escapeHtml(f.value)}</li>`));
+        (rel.red_flags || []).forEach(f => items.push(`<li class="flag">Klinik bayrak: ${escapeHtml(FIELD_BY_ID[f.feature]?.label || f.feature)} = ${escapeHtml(f.value)}${f.measured_hour != null && f.measured_hour !== res.hour ? ` (saat ${f.measured_hour} ölçümü)` : ''}</li>`));
         (rel.reasons || []).forEach((r, i) => items.push(`<li class="${i === 0 && rel.clinical_disagreement ? 'flag' : !rel.sufficient_data && i === 0 ? 'bad' : ''}">${escapeHtml(r)}</li>`));
         if (rel.unused_fields && rel.unused_fields.length) items.push(`<li>${escapeHtml(rel.unused_fields.join(', '))} kaydedildi ancak modelde kullanılmıyor.</li>`);
         if (items.length) {
