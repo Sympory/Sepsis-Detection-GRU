@@ -94,3 +94,15 @@ def test_dataset_export_anonymous_and_labeled(ml, clients, patient):
     assert 'Test Hasta' not in csv and 'T1' not in csv
     assert [r['SepsisLabel'] for r in rows] == ['0', '1', '1']    # başlangıçtan 6 saat önce (saat 2) 1 olur
     assert {r['Patient_ID'] for r in rows} == {'L00001'}
+
+
+def test_unknown_onset_saved_but_not_exported(ml, clients, patient):
+    nurse, doc = clients['nurse'], clients['doctor']
+    add(nurse, patient, 1, NORMAL)
+    r = doc.post(f'/api/patients/{patient}/discharge', json={'outcome': {'sepsis': 'yes', 'onset_unknown': True}})
+    assert r.status_code == 200
+    assert doc.get(f'/api/patients/{patient}').get_json()['patient']['outcome']['onset_hour'] is None
+    csv = clients['admin'].get('/api/admin/dataset.csv').get_data(as_text=True)
+    assert len(csv.strip().splitlines()) == 1, 'Başlangıcı bilinmeyen sepsis hastası veri setine girmemeli'
+    ds = clients['admin'].get('/api/admin/db-stats').get_json()['dataset']
+    assert ds['sepsis_no_onset'] == 1 and ds['exportable_patients'] == 0

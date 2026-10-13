@@ -470,7 +470,7 @@ async function openPatient(id, opts = {}) {
             `ID ${escapeHtml(currentPatient.patient_id)} · ${currentPatient.age ? currentPatient.age + ' yaş' : 'yaş girilmemiş'} · ${genderText(currentPatient.gender)} · ${currentHourly.length} saatlik kayıt`
             + (currentPatient.created_by_name ? ` · Kabul: ${escapeHtml(currentPatient.created_by_name)}` : '')
             + (discharged ? ` · <span class="badge none">Taburcu ${formatDateTime(currentPatient.discharged_at)}${currentPatient.discharged_by_name ? ' — ' + escapeHtml(currentPatient.discharged_by_name) : ''}</span>` : '')
-            + (currentPatient.outcome ? ` · <span class="badge ${currentPatient.outcome.sepsis === 'yes' ? 'high' : 'none'}">${OUTCOME_LABELS[currentPatient.outcome.sepsis]}${currentPatient.outcome.onset_hour != null ? ' (saat ' + currentPatient.outcome.onset_hour + ')' : ''}</span>` : '');
+            + (currentPatient.outcome ? ` · <span class="badge ${currentPatient.outcome.sepsis === 'yes' ? 'high' : 'none'}">${OUTCOME_LABELS[currentPatient.outcome.sepsis]}${onsetText(currentPatient.outcome)}</span>` : '');
         document.getElementById('detail-avatar').textContent = initials(currentPatient.name);
 
         renderPatientActions(discharged);
@@ -557,7 +557,7 @@ function describeEvent(action, d) {
     if (action === 'patient.create') return `${d.patient_id} · ${d.name}`;
     if (action === 'patient.discharge' || action === 'patient.outcome') {
         const parts = [];
-        if (d.sepsis) parts.push(OUTCOME_LABELS[d.sepsis] + (d.onset_hour != null ? ` (saat ${d.onset_hour})` : ''));
+        if (d.sepsis) parts.push(OUTCOME_LABELS[d.sepsis] + onsetText(d));
         if (d.old) parts.push(`önceki: ${OUTCOME_LABELS[d.old.sepsis]}`);
         if (d.note) parts.push(`Not: ${d.note}`);
         if (d.closed_alarms) parts.push(`${d.closed_alarms} alarm kapatıldı`);
@@ -1064,6 +1064,7 @@ function showOutcomeModal(mode) {
     document.querySelectorAll('input[name="outcome-sepsis"]').forEach(r => { r.checked = !!oc && oc.sepsis === r.value; });
     const last = currentHourly[currentHourly.length - 1];
     document.getElementById('outcome-onset').value = oc && oc.onset_hour != null ? oc.onset_hour : '';
+    document.getElementById('outcome-onset-unknown').checked = !!oc && oc.sepsis === 'yes' && oc.onset_hour == null;
     document.getElementById('outcome-onset').placeholder = last ? `0–${last.hour}` : '';
     document.getElementById('outcome-note').value = oc && oc.note ? oc.note : '';
     toggleOnset();
@@ -1073,6 +1074,9 @@ function showOutcomeModal(mode) {
 function toggleOnset() {
     const sel = document.querySelector('input[name="outcome-sepsis"]:checked');
     document.getElementById('outcome-onset-wrap').hidden = !(sel && sel.value === 'yes');
+    const unknown = document.getElementById('outcome-onset-unknown').checked;
+    document.getElementById('outcome-onset').disabled = unknown;
+    document.getElementById('outcome-onset-unknown-help').hidden = !unknown;
 }
 
 async function submitOutcome(event) {
@@ -1080,7 +1084,10 @@ async function submitOutcome(event) {
     const sel = document.querySelector('input[name="outcome-sepsis"]:checked');
     if (!sel) return showToast('Sepsis sonucunu seçin', 'warning');
     const onset = document.getElementById('outcome-onset').value;
-    const outcome = { sepsis: sel.value, onset_hour: sel.value === 'yes' && onset !== '' ? parseInt(onset, 10) : null,
+    const onsetUnknown = sel.value === 'yes' && document.getElementById('outcome-onset-unknown').checked;
+    if (sel.value === 'yes' && !onsetUnknown && onset === '') return showToast('Başlangıç saatini girin veya “bilinmiyor” işaretleyin', 'warning');
+    const outcome = { sepsis: sel.value, onset_unknown: onsetUnknown,
+                      onset_hour: sel.value === 'yes' && !onsetUnknown ? parseInt(onset, 10) : null,
                       note: document.getElementById('outcome-note').value.trim() };
     try {
         if (outcomeMode === 'discharge') {
@@ -1100,6 +1107,11 @@ async function submitOutcome(event) {
 }
 
 const OUTCOME_LABELS = { yes: 'Sepsis: Evet', no: 'Sepsis: Hayır', unknown: 'Sepsis: Belirsiz' };
+
+function onsetText(oc) {
+    if (oc.sepsis !== 'yes') return '';
+    return oc.onset_hour != null ? ` (saat ${oc.onset_hour})` : ' (saat bilinmiyor)';
+}
 
 async function readmitPatient() {
     if (!confirm(`"${currentPatient.name}" yeniden kabul edilsin mi?`)) return;
@@ -1317,6 +1329,7 @@ async function loadDatabase() {
                 <div class="metrics">
                     <div class="metric"><div class="metric-label">Sepsis (Evet)</div><div class="metric-value bad">${d.dataset.sepsis_yes}</div></div>
                     <div class="metric"><div class="metric-label">Sepsis değil (Hayır)</div><div class="metric-value good">${d.dataset.sepsis_no}</div></div>
+                    <div class="metric"><div class="metric-label">Sepsis, saat bilinmiyor (alınmaz)</div><div class="metric-value">${d.dataset.sepsis_no_onset}</div></div>
                     <div class="metric"><div class="metric-label">Belirsiz (alınmaz)</div><div class="metric-value">${d.dataset.sepsis_unknown}</div></div>
                     <div class="metric"><div class="metric-label">Sonuç girilmemiş</div><div class="metric-value warn">${d.dataset.unlabeled}</div></div>
                     <div class="metric"><div class="metric-label">Veri setindeki saat</div><div class="metric-value">${d.dataset.exportable_hours.toLocaleString('tr-TR')}</div></div>

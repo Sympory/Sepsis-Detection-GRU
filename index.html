@@ -456,11 +456,13 @@
                     </div>
                     <span class="field-help">Bu bilgi ileride modeli yeniden eğitmek için veri setinin etiketi olur. “Belirsiz” işaretlenen hastalar veri setine alınmaz.</span>
                 </fieldset>
-                <label class="field" id="outcome-onset-wrap" hidden>
+                <div class="field" id="outcome-onset-wrap" hidden>
                     <span class="field-label"><span>Klinik sepsis başlangıcı (YBÜ saati) <em>*</em></span></span>
                     <input type="number" id="outcome-onset" min="0" inputmode="numeric">
                     <span class="field-help">Tanının konduğu / tedavinin başladığı saat (Sepsis-3)</span>
-                </label>
+                    <label class="check-inline"><input type="checkbox" id="outcome-onset-unknown" onchange="toggleOnset()"> Başlangıç saati bilinmiyor</label>
+                    <span class="field-help" id="outcome-onset-unknown-help" hidden>Sonuç kaydedilir ama hasta veri setine alınmaz: saat bilinmeden hangi kayıtların “sepsis öncesi” olduğu etiketlenemez.</span>
+                </div>
                 <label class="field">
                     <span class="field-label">Not</span>
                     <input type="text" id="outcome-note" maxlength="500" placeholder="ör. kan kültüründe E. coli üredi">

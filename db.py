@@ -370,10 +370,16 @@ def save_outcome(conn, patient_pk, sepsis, onset_hour, note, user):
 # VERİ SETİ (yeniden eğitim için, PhysioNet 2019 formatında)
 # ============================================================================
 
+# Saatlik etiket üretilebilen sonuçlar: 'no' ya da başlangıç saati bilinen 'yes'.
+# Başlangıcı bilinmeyen sepsis hastası alınmaz; yoksa tüm saatleri yanlışlıkla 0 etiketlenirdi.
+EXPORTABLE = "(oc.sepsis = 'no' OR (oc.sepsis = 'yes' AND oc.onset_hour IS NOT NULL))"
+
+
 def dataset_summary(conn):
     row = conn.execute(
         '''SELECT
-             SUM(CASE WHEN oc.sepsis = 'yes' THEN 1 ELSE 0 END) AS sepsis_yes,
+             SUM(CASE WHEN oc.sepsis = 'yes' AND oc.onset_hour IS NOT NULL THEN 1 ELSE 0 END) AS sepsis_yes,
+             SUM(CASE WHEN oc.sepsis = 'yes' AND oc.onset_hour IS NULL THEN 1 ELSE 0 END) AS sepsis_no_onset,
              SUM(CASE WHEN oc.sepsis = 'no' THEN 1 ELSE 0 END) AS sepsis_no,
              SUM(CASE WHEN oc.sepsis = 'unknown' THEN 1 ELSE 0 END) AS sepsis_unknown,
              SUM(CASE WHEN oc.patient_id IS NULL THEN 1 ELSE 0 END) AS unlabeled
@@ -382,8 +388,8 @@ def dataset_summary(conn):
     hours = conn.execute(
         '''SELECT COUNT(*) FROM observations o JOIN outcomes oc ON oc.patient_id = o.patient_id
            JOIN patients p ON p.id = o.patient_id
-           WHERE p.status = 'discharged' AND oc.sepsis IN ('yes', 'no')''').fetchone()[0]
-    d = {k: (row[k] or 0) for k in ('sepsis_yes', 'sepsis_no', 'sepsis_unknown', 'unlabeled')}
+           WHERE p.status = 'discharged' AND ''' + EXPORTABLE).fetchone()[0]
+    d = {k: (row[k] or 0) for k in ('sepsis_yes', 'sepsis_no_onset', 'sepsis_no', 'sepsis_unknown', 'unlabeled')}
     d['exportable_patients'] = d['sepsis_yes'] + d['sepsis_no']
     d['exportable_hours'] = hours
     return d
@@ -391,7 +397,7 @@ def dataset_summary(conn):
 
 def export_dataset_rows(conn, label_lead_hours=6):
     """
-    Taburcu edilmiş ve sonucu 'yes'/'no' olarak işaretlenmiş hastaların saatlik kayıtları.
+    Taburcu edilmiş ve sonucu 'no' ya da başlangıç saatiyle 'yes' olan hastaların saatlik kayıtları.
     Kimlik bilgisi yok: ad, protokol no ve iç id yerine sıra numarası verilir.
     SepsisLabel, PhysioNet 2019 kuralıyla klinik başlangıçtan `label_lead_hours` saat önce 1 olur.
     """
@@ -399,13 +405,13 @@ def export_dataset_rows(conn, label_lead_hours=6):
     patients = conn.execute(
         '''SELECT p.id, p.age, p.gender, oc.sepsis, oc.onset_hour FROM patients p
            JOIN outcomes oc ON oc.patient_id = p.id
-           WHERE p.status = 'discharged' AND oc.sepsis IN ('yes', 'no') ORDER BY p.id''').fetchall()
+           WHERE p.status = 'discharged' AND ''' + EXPORTABLE + ' ORDER BY p.id').fetchall()
     header = ['Hour', *CLINICAL_COLUMNS, 'Age', 'Gender', 'Unit1', 'Unit2', 'HospAdmTime', 'ICULOS', 'SepsisLabel', 'Patient_ID']
     rows = []
     for anon_id, p in enumerate(patients, start=1):
         for o in get_observations(conn, p['id']):
             vs = o['vital_signs']
-            label = int(p['sepsis'] == 'yes' and p['onset_hour'] is not None and o['hour'] >= p['onset_hour'] - label_lead_hours)
+            label = int(p['sepsis'] == 'yes' and o['hour'] >= p['onset_hour'] - label_lead_hours)
             rows.append([o['hour'], *[vs.get(c, '') for c in CLINICAL_COLUMNS], p['age'] if p['age'] is not None else '',
                          {'Male': 1, 'Female': 0}.get(p['gender'], ''), '', '', '', o['hour'] + 1, label, f'L{anon_id:05d}'])
     return header, rows

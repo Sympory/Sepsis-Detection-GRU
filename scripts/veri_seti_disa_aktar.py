@@ -48,7 +48,7 @@ def main():
         writer.writerows(rows)
 
     print(f"Taburcu hastalar: {summary['sepsis_yes']} sepsis, {summary['sepsis_no']} sepsis değil, "
-          f"{summary['sepsis_unknown']} belirsiz, {summary['unlabeled']} etiketsiz")
+          f"{summary['sepsis_no_onset']} sepsis (saat bilinmiyor), {summary['sepsis_unknown']} belirsiz, {summary['unlabeled']} etiketsiz")
     print(f"Veri setine alınan: {summary['exportable_patients']} hasta, {len(rows)} saatlik satır → {args.cikti}")
     if summary['exportable_patients'] < 100:
         print("Not: Anlamlı bir yeniden eğitim için yüzlerce etiketli hasta gerekir; veri biriktikçe tekrar çalıştırın.")

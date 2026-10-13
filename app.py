@@ -294,7 +294,9 @@ def _parse_outcome(data, patient_pk):
     if sepsis not in ('yes', 'no', 'unknown'):
         return None, 'Sepsis sonucu seçilmeli (Evet / Hayır / Belirsiz)'
     onset = outcome.get('onset_hour')
-    if sepsis == 'yes':
+    if sepsis == 'yes' and outcome.get('onset_unknown'):
+        onset = None                                   # sepsis kesin, saat bilinmiyor → veri setine alınmaz
+    elif sepsis == 'yes':
         try:
             onset = int(onset)
         except (TypeError, ValueError):
