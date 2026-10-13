@@ -145,6 +145,29 @@ Model seçimi, birleşim ağırlığı, kalibrasyon ve eşik **validasyon** hast
 
 Tek bölmedeki test sonucu (0.847) bu aralıkla tutarlı; sonuç tek bir veri bölmesine bağlı değil (`scripts/cv_hybrid.py`).
 
+### Hastaneler arası test (dış doğrulama)
+
+| Test edilen | Eğitim | ROC-AUC | PR-AUC | Utility | Tarama eşiği duyarlılık / özgüllük |
+|---|---|---|---|---|---|
+| Hastane A | Dış: yalnız hastane B | 0.787 | 0.103 | 0.359 | %76 / %66 |
+| Hastane A | İç: kendi verisi | **0.817** | 0.121 | **0.421** | %77 / %70 |
+| Hastane A | Birleşik: B + kendi | 0.816 | **0.126** | 0.417 | %80 / %67 |
+| Hastane B | Dış: yalnız hastane A | 0.777 | 0.066 | 0.275 | **%59** / %81 |
+| Hastane B | İç: kendi verisi | **0.849** | 0.115 | **0.378** | %77 / %76 |
+| Hastane B | Birleşik: A + kendi | 0.846 | 0.114 | 0.359 | %72 / %80 |
+
+PhysioNet verisi iki hastaneden gelir (A: 20.336 hasta, sepsis %8.8; B: 20.000 hasta, sepsis %5.7). Her hastanenin
+hastalarının %30'u test için ayrıldı ve üç model aynı hastalarda karşılaştırıldı (`scripts/hastane_arasi_test.py`).
+Eşikler her modelin kendi eğitim hastanesinde seçildi.
+
+**Bulgular:**
+- Hiç görülmemiş hastanede ROC-AUC **0.03–0.07 düşüyor** (B'de 0.849 → 0.777). Bu, eğitim veri miktarından değil
+  hastane farkından: dış modeller iç modellerden daha çok hastayla eğitildi.
+- **Eşik taşınmıyor:** A'da “%80 duyarlılık” diye seçilen eşik B'de yalnızca %59 yakalıyor.
+- Hastanenin **kendi verisiyle** eğitince performans geri geliyor; diğer hastaneyi eklemek ek kazanç getirmiyor.
+- Sonuç: yeni bir hastanede kullanmadan önce **yerel doğrulama ve yeniden eğitim şart**. Uygulamadaki taburcu sonucu →
+  anonim veri seti döngüsü tam bunun için tasarlandı. Tek koşu olduğu için 0.01'lik farklar anlamlı değildir.
+
 ### Klinik skorlarla karşılaştırma ve PhysioNet Utility (test hastaları)
 
 | Yöntem | ROC-AUC | PR-AUC | Utility |
@@ -507,7 +530,7 @@ ROC-AUC 0.806 → **0.847** (hedef 0.83–0.85). Kalan adımlar:
 | ◐ 3 | Mimari | 24 saatlik pencere GRU denendi — **yapıldı**; GRU-D, TCN, Transformer, Optuna kaldı |
 | ✅ 4 | Topluluk | LightGBM (3 seed) + sinir ağı birleşimi, kalibrasyon — **yapıldı** |
 | ◐ 5 | Açıklanabilirlik | Tahmin başına faktör açıklaması (Saabas) — **yapıldı**; TreeSHAP, conformal prediction kaldı |
-| ◐ 6 | Dış doğrulama ve rapor | pytest (63 test) — **yapıldı**; hastane A → B testi, alt grup analizi, Docker kaldı |
+| ◐ 6 | Dış doğrulama ve rapor | pytest (64 test), hastane A ↔ B testi — **yapıldı**; alt grup analizi, Docker kaldı |
 
 **Hedef:** ROC-AUC 0.83–0.85 ✅ (0.847; CV 0.842 ± 0.009) · Utility ≥ 0.30 ✅ (0.427, iç test).
 

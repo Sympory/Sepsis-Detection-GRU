@@ -72,7 +72,7 @@
   3. Mimari: uzun pencere, GRU-D, TCN, Transformer
   4. Ensemble (GRU + LightGBM), kayıp fonksiyonları
   5. ◐ Açıklanabilirlik: tahmin başına faktör açıklaması yapıldı; SHAP, conformal prediction kaldı
-  6. Dış doğrulama (hastane A → B), rapor
+  6. ✅ Hastaneler arası test: görülmemiş hastanede AUC 0.03–0.07 düşüyor, eşik taşınmıyor → yerel yeniden eğitim şart
 - **Hedef:** AUC 0.83–0.85, Utility ≥ 0.30 (yarışma kazananı 0.36).
 - Model GPU'da 3 dakikada eğitildiği için 6 haftada yüzlerce deney yapılabilir.
 - Araştırma prototipi, klinik kullanım için değil.

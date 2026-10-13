@@ -590,6 +590,7 @@ def model_info():
         'reliability_stats': ml.estimator.stats if ml.estimator else {},
         'clinical_comparison': _read_model_json('clinical_comparison.json'),
         'cross_validation': _read_model_json('cross_validation.json'),
+        'external_validation': _read_model_json('hastane_arasi_test.json'),
     })
 
 

@@ -187,6 +187,28 @@ Model, hastanelerde bugün kullanılan skorlardan belirgin şekilde iyi. **Dikka
 ama **hiç görülmemiş üçüncü bir hastanede**; bizim 0.427 aynı iki hastanenin ayrılmış hastalarında. Doğrudan
 karşılaştırılamaz — dürüstçe söylenmeli. qSOFA/NEWS2 bilinç (GKS) verisi olmadığı için kısmi.
 
+### Hastaneler arası test — `scripts/hastane_arasi_test.py`
+| Test edilen | Eğitim | ROC-AUC | PR-AUC | Utility | Tarama eşiği duyarlılık / özgüllük |
+|---|---|---|---|---|---|
+| Hastane A | Dış: yalnız hastane B | 0.787 | 0.103 | 0.359 | %76 / %66 |
+| Hastane A | İç: kendi verisi | **0.817** | 0.121 | **0.421** | %77 / %70 |
+| Hastane A | Birleşik: B + kendi | 0.816 | **0.126** | 0.417 | %80 / %67 |
+| Hastane B | Dış: yalnız hastane A | 0.777 | 0.066 | 0.275 | **%59** / %81 |
+| Hastane B | İç: kendi verisi | **0.849** | 0.115 | **0.378** | %77 / %76 |
+| Hastane B | Birleşik: A + kendi | 0.846 | 0.114 | 0.359 | %72 / %80 |
+
+PhysioNet verisi iki hastaneden gelir (A: 20.336 hasta, sepsis %8.8; B: 20.000 hasta, sepsis %5.7). Her hastanenin
+hastalarının %30'u test için ayrıldı ve üç model aynı hastalarda karşılaştırıldı (`scripts/hastane_arasi_test.py`).
+Eşikler her modelin kendi eğitim hastanesinde seçildi.
+
+**Bulgular:**
+- Hiç görülmemiş hastanede ROC-AUC **0.03–0.07 düşüyor** (B'de 0.849 → 0.777). Bu, eğitim veri miktarından değil
+  hastane farkından: dış modeller iç modellerden daha çok hastayla eğitildi.
+- **Eşik taşınmıyor:** A'da “%80 duyarlılık” diye seçilen eşik B'de yalnızca %59 yakalıyor.
+- Hastanenin **kendi verisiyle** eğitince performans geri geliyor; diğer hastaneyi eklemek ek kazanç getirmiyor.
+- Sonuç: yeni bir hastanede kullanmadan önce **yerel doğrulama ve yeniden eğitim şart**. Uygulamadaki taburcu sonucu →
+  anonim veri seti döngüsü tam bunun için tasarlandı. Tek koşu olduğu için 0.01'lik farklar anlamlı değildir.
+
 ### Hasta düzeyinde test — `scripts/hasta_bazli_test.py`
 Saat değil **hasta** sayılırsa (586 septik, 7.480 septik olmayan test hastası):
 | Eşik | Etiket başlamadan alarm alan septik hasta | En az bir yanlış alarm alan hasta |
@@ -299,7 +321,7 @@ Yabancı anahtarlar açık (`PRAGMA foreign_keys=ON`). Eski şemadan geçişte �
 PostgreSQL'e geçilmesi gerekir; şema standart SQL ile yazıldı; eski bir PostgreSQL taslağı `database/schema.sql`'de duruyor.
 
 ### Veri seti döngüsü
-Taburcu sırasında doktor sonucu işaretler. Yönetici **anonim CSV** indirir: isimler yok, hasta kimlikleri `L00001`
+Taburcu sırasında doktor sonucu işaretler (sepsis evet/hayır/belirsiz ve başlangıç saati). Sepsis kesin ama başlangıç saati bilinmiyorsa “bilinmiyor” işaretlenir: sonuç kaydedilir ama hasta veri setine alınmaz, çünkü hangi saatlerin “sepsis öncesi” olduğu etiketlenemez. Yönetici **anonim CSV** indirir: isimler yok, hasta kimlikleri `L00001`
 gibi, sütunlar PhysioNet formatında, `SepsisLabel` başlangıçtan 6 saat önce 1 (eğitim verisiyle aynı kural). Yani
 hastane verisiyle modeli yeniden eğitmek mümkün (`scripts/veri_seti_disa_aktar.py`).
 
@@ -312,7 +334,7 @@ klinik karşılaştırmayı ve tutarlılık testini gösterir. Yönetici için k
 
 ---
 
-## 10. Testler — `tests/` (pytest, 63 test)
+## 10. Testler — `tests/` (pytest, 64 test)
 
 | Dosya | Neyi doğrular |
 |---|---|
@@ -320,7 +342,7 @@ klinik karşılaştırmayı ve tutarlılık testini gösterir. Yönetici için k
 | `test_database.py` | FK/CHECK kısıtları, denetim kaydının silinememesi, göç |
 | `test_features.py` | **geleceğe bakmama**, ileri doldurma, hastalar arası karışmama, 281 özellik |
 | `test_gbm_numpy.py` | NumPy ağaçları = LightGBM; açıklama katkılarının toplamı = skor |
-| `test_api.py` | boş form reddi, aralık dışı değer, “Yetersiz Veri”, septik > normal, alarm notu zorunlu, taburcu sonucu, anonim veri seti |
+| `test_api.py` | boş form reddi, başlangıç saati bilinmeyen sepsisin veri setine girmemesi, aralık dışı değer, “Yetersiz Veri”, septik > normal, alarm notu zorunlu, taburcu sonucu, anonim veri seti |
 | `test_utility.py` | Utility'nin resmi tanımla birebir aynı olması |
 
 Ayrıca `sistem_kontrol.py`: uygulamayı uçtan uca deneyen 58 kontrol (demo öncesi çalıştırılır).
@@ -349,7 +371,8 @@ Ortam: Python 3.10 (TensorFlow 2.10 Windows'ta 3.11+ desteklemez), GPU: NVIDIA R
 
 ## 12. Sınırlar (sorulursa dürüstçe)
 
-1. **Dış doğrulama yok:** Test hastaları eğitimle aynı iki hastaneden. Başka hastanede performans düşebilir.
+1. **Başka hastanede performans düşüyor:** Hastaneler arası testte ROC-AUC 0.03–0.07 düştü ve eşik taşınmadı.
+   Yeni hastanede yerel doğrulama ve yeniden eğitim gerekir. Türkiye'deki bir hastanede hiç test edilmedi.
 2. **Duyarlılık–yanlış alarm dengesi:** Dengeli eşikte septiklerin üçte birini önceden yakalıyor; tarama eşiğinde
    %80'ini ama hastaların yarısından fazlasına en az bir yanlış alarm.
 3. **Klinisyen davranışı öğreniliyor:** “Ölçüldü mü” ve “ne zamandır ölçülmüyor” özellikleri, doktorun kaygısını
@@ -362,11 +385,10 @@ Ortam: Python 3.10 (TensorFlow 2.10 Windows'ta 3.11+ desteklemez), GPU: NVIDIA R
 ---
 
 ## 13. Gelecek çalışmalar
-- Başka hastane verisiyle dış doğrulama (ör. MIMIC-IV), alt grup analizi (yaş, cinsiyet).
+- Üçüncü bir kaynakla dış doğrulama (ör. MIMIC-IV, yerel hastane), alt grup analizi (yaş, cinsiyet).
 - TreeSHAP ile kesin Shapley değerleri; conformal prediction ile garanti aralıklı belirsizlik.
 - GRU-D / Transformer gibi eksik veriyi doğal işleyen zaman serisi modelleri.
 - Toplanan anonim veriyle yeniden eğitim; PostgreSQL ve hastane ağında çalışma (HTTPS, HL7/FHIR entegrasyonu).
-- Taburcu sonucunda “başlangıç saati bilinmiyor” seçeneği.
 
 ---
 

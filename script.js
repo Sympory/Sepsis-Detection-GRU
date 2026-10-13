@@ -1417,6 +1417,7 @@ async function loadModelInfo() {
         ${renderPatientLevel(st)}
         ${renderComparison(st, t)}
         ${renderCrossValidation(modelInfo.cross_validation)}
+        ${renderExternalValidation(modelInfo.external_validation)}
         ${renderClinicalComparison(modelInfo.clinical_comparison)}
         ${renderSanity(st.clinical_sanity)}
 
@@ -1500,6 +1501,28 @@ function renderCrossValidation(cv) {
                 <tbody>${row('Hibrit', 'hybrid')}${row('LightGBM', 'lightgbm')}${row('Sinir ağı (MLP)', 'mlp')}</tbody>
             </table></div>
             <div class="prose"><p>Her hasta bir kez test katında yer alır. Düşük standart sapma, sonucun tek bir veri bölmesine bağlı olmadığını gösterir.</p></div>
+        </div>`;
+}
+
+function renderExternalValidation(ev) {
+    if (!ev) return '';
+    const names = { 'dış': 'Dış: yalnız diğer hastane', 'iç': 'İç: kendi verisi', 'birleşik': 'Birleşik: diğer + kendi' };
+    const order = ['dış', 'iç', 'birleşik'];
+    const rows = Object.entries(ev.results).map(([target, res]) => Object.entries(res).sort((x, y) => order.indexOf(x[0]) - order.indexOf(y[0])).map(([name, r], i) => `
+        <tr>${i === 0 ? `<td rowspan="${Object.keys(res).length}"><strong>Hastane ${target}</strong><div class="muted small">${r.test_patients.toLocaleString('tr-TR')} test hastası</div></td>` : ''}
+            <td>${names[name] || escapeHtml(name)}</td>
+            <td class="num">${r.train_patients.toLocaleString('tr-TR')}</td>
+            <td class="num">${name === 'dış' ? '' : '<strong>'}${r.roc_auc.toFixed(3)}${name === 'dış' ? '' : '</strong>'}</td>
+            <td class="num">${r.pr_auc.toFixed(3)}</td><td class="num">${r.utility.toFixed(3)}</td>
+            <td class="num">${pct(r.screen_sensitivity, 0)} / ${pct(r.screen_specificity, 0)}</td></tr>`).join('')).join('');
+    return `
+        <div class="card">
+            <div class="card-head"><h2>Hastaneler arası test</h2><span class="muted small">PhysioNet 2019: hastane A ve B</span></div>
+            <div class="table-wrap"><table class="table">
+                <thead><tr><th>Test edilen</th><th>Eğitim</th><th>Eğitim hastası</th><th>ROC-AUC</th><th>PR-AUC</th><th>Utility</th><th>Tarama eşiği duyarlılık / özgüllük</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table></div>
+            <div class="prose"><p>Model hiç görmediği hastaneye götürüldüğünde ROC-AUC 0.03–0.07 düşüyor ve eğitim hastanesinde seçilen eşik taşınmıyor (B'de tarama duyarlılığı %80 yerine %59). Aynı hastanenin kendi verisiyle eğitilince performans geri geliyor. Sonuç: <strong>yeni bir hastanede kullanmadan önce o hastanenin verisiyle doğrulama ve yeniden eğitim şart</strong>; uygulamadaki taburcu sonucu → anonim veri seti döngüsü bunun için var. Eşikler her modelin kendi eğitim hastanesinin validasyonunda seçildi; tek koşu olduğu için 0.01'lik farklar anlamlı değildir.</p></div>
         </div>`;
 }
 
