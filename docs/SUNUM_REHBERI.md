@@ -67,11 +67,11 @@
 ### 6. Önümüzdeki 6 hafta (1,5 dk) — *“bitmiş proje değil, sağlam bir başlangıç”*
 - **Bulgu:** 7 farklı mimari hasta bazlı testte 0.80–0.81'de toplanıyor. Sorun mimaride değil, özelliklerde ve değerlendirmede.
 - **Plan** (`docs/PROJE_PLANI_6_HAFTA.md`):
-  1. Değerlendirme: GroupKFold + PhysioNet Utility Score + qSOFA karşılaştırması
+  1. ✅ Değerlendirme: 5 katlı CV (0.842 ± 0.009), Utility 0.427 (NEWS2 0.115, SIRS 0.054, qSOFA 0.023)
   2. Özellikler: ölçümden geçen süre, 12/24 saatlik trendler, SOFA
   3. Mimari: uzun pencere, GRU-D, TCN, Transformer
   4. Ensemble (GRU + LightGBM), kayıp fonksiyonları
-  5. Açıklanabilirlik: SHAP, conformal prediction
+  5. ◐ Açıklanabilirlik: tahmin başına faktör açıklaması yapıldı; SHAP, conformal prediction kaldı
   6. Dış doğrulama (hastane A → B), rapor
 - **Hedef:** AUC 0.83–0.85, Utility ≥ 0.30 (yarışma kazananı 0.36).
 - Model GPU'da 3 dakikada eğitildiği için 6 haftada yüzlerce deney yapılabilir.

@@ -111,7 +111,7 @@ Eğitim süresinin kısa olması, 6 hafta içinde **yüzlerce deney** yapılabil
 
 ## 5. 6 Haftalık Plan
 
-### Hafta 1 — Sağlam değerlendirme altyapısı
+### Hafta 1 — Sağlam değerlendirme altyapısı ✅ (yapıldı: CV, Utility, SIRS/qSOFA/NEWS2)
 *“Neyi ölçtüğümüzden emin olmadan modeli iyileştiremeyiz.”*
 
 | Görev | Teknik |
@@ -196,9 +196,10 @@ Eğitim süresinin kısa olması, 6 hafta içinde **yüzlerce deney** yapılabil
 |--------|---------------|-------------------|-------|-----------|
 | ROC-AUC (hasta bazlı) | 0.806 | **0.847** ✅ | 0.83 – 0.85 | ~0.80 – 0.85 |
 | PR-AUC | 0.095 | **0.132** ✅ | 0.12+ | — |
-| Utility Score | ölçülmedi | ölçülmedi | ≥ 0.30 | kazanan 0.36 |
+| Utility Score | 0.358 | **0.427** ✅ (iç test) | ≥ 0.30 | kazanan 0.36 (gizli hastane) |
+| Çapraz doğrulama | yok | **0.842 ± 0.009** ✅ | ± güven aralığı | — |
 | Özgüllük (%80 duyarlılıkta) | %64 | **%75** | — | — |
-| Açıklanabilirlik | yok | yok | tahmin başına SHAP | — |
+| Açıklanabilirlik | yok | **tahmin başına faktörler** ✅ | tahmin başına SHAP | — |
 | Dış doğrulama | yok | yok | A → B testi | — |
 
 ---

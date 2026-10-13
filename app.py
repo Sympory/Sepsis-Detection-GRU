@@ -586,7 +586,17 @@ def model_info():
         'feature_set': FEATURE_SET,
         'unused_fields': ml.MODEL_UNUSED_FIELDS,
         'reliability_stats': ml.estimator.stats if ml.estimator else {},
+        'clinical_comparison': _read_model_json('clinical_comparison.json'),
+        'cross_validation': _read_model_json('cross_validation.json'),
     })
+
+
+def _read_model_json(name):
+    path = os.path.join(os.path.dirname(ml.MODEL_PATH), name)
+    if not os.path.exists(path):
+        return None
+    with open(path, encoding='utf-8') as f:
+        return json.load(f)
 
 
 # ============================================================================

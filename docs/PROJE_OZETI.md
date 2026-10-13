@@ -174,6 +174,9 @@ Değerler, eğitimde **hiç görülmemiş 8.066 test hastası** üzerinde ölç�
 | Kalibrasyon hatası | 0.048 → **0.002** |
 | Normal / septik hasta skoru (24. saat) | **%6 / %36** |
 | Tarama modunda özgüllük (%80 duyarlılıkta) | %64 → **%75** (yanlış alarm ~%30 az) |
+| 5 katlı çapraz doğrulama | ROC-AUC **0.842 ± 0.009**, PR-AUC 0.129 ± 0.010 |
+| PhysioNet Utility (iç test) | **0.427** (ilk GRU 0.358; NEWS2 0.115, SIRS 0.054, qSOFA 0.023) |
+| Klinik skorlarla AUC | Hibrit 0.847 · NEWS2 0.682 · SIRS 0.649 · qSOFA 0.593 |
 
 ### Geliştirme sürecinde öğrenilenler
 | Sürüm | Sonuç | Ders |

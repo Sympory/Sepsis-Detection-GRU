@@ -379,6 +379,20 @@ button { font: inherit; color: inherit; cursor: pointer; background: none; borde
 .verdict.danger { background: var(--danger-soft); color: var(--risk-high); }
 .verdict.ok { background: var(--ok-soft); color: var(--risk-very-low); }
 
+/* ---------- Explanation factors ---------- */
+.factor-group-title { font-size: 11px; font-weight: 600; color: var(--text-3); margin: 10px 0 4px; }
+.factor-group-title:first-of-type { margin-top: 0; }
+.factor { display: grid; grid-template-columns: minmax(0, 1fr) 70px 40px; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; }
+.factor-text { display: flex; flex-direction: column; min-width: 0; }
+.factor-text strong { font-size: 13px; font-weight: 600; color: var(--text); }
+.factor-text span { color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.factor-bar { height: 6px; border-radius: 3px; background: var(--muted-soft); overflow: hidden; }
+.factor.up .factor-bar i { display: block; height: 100%; background: var(--risk-high); border-radius: 3px; }
+.factor.down .factor-bar i { display: block; height: 100%; background: var(--risk-very-low); border-radius: 3px; }
+.factor.up b { color: var(--risk-high); text-align: right; }
+.factor.down b { color: var(--risk-very-low); text-align: right; }
+.factor-note { font-size: 11px; color: var(--text-3); margin-top: 8px; }
+
 /* ---------- Chart ---------- */
 .chart-box { height: 240px; padding: 16px 20px; position: relative; }
 .chart-empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--text-3); font-size: 13px; }

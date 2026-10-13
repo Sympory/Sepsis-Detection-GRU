@@ -135,6 +135,31 @@ Model seçimi, birleşim ağırlığı, kalibrasyon ve eşik **validasyon** hast
 | Brier (ham → kalibre) | 0.023 → 0.017 |
 | ECE (ham → kalibre) | 0.048 → 0.002 |
 
+### 5 katlı çapraz doğrulama (40.336 hasta, hasta bazlı)
+
+| Model | ROC-AUC | PR-AUC |
+|-------|---------|--------|
+| **Hibrit** | **0.842 ± 0.009** | **0.129 ± 0.010** |
+| LightGBM | 0.840 ± 0.010 | 0.128 ± 0.009 |
+| Sinir ağı (MLP) | 0.820 ± 0.006 | 0.112 ± 0.007 |
+
+Tek bölmedeki test sonucu (0.847) bu aralıkla tutarlı; sonuç tek bir veri bölmesine bağlı değil (`scripts/cv_hybrid.py`).
+
+### Klinik skorlarla karşılaştırma ve PhysioNet Utility (test hastaları)
+
+| Yöntem | ROC-AUC | PR-AUC | Utility |
+|--------|---------|--------|---------|
+| **Hibrit v4** | **0.847** | **0.132** | **0.427** |
+| GRU v3 | 0.806 | 0.095 | 0.358 |
+| NEWS2 (kısmi, ≥ 5) | 0.682 | — | 0.115 |
+| SIRS (≥ 2) | 0.649 | — | 0.054 |
+| qSOFA (kısmi, ≥ 2) | 0.593 | — | 0.023 |
+
+**Utility**, PhysioNet 2019'un resmi metriğidir: sepsisten 12–6 saat önceki alarmı ödüllendirir, geç ve yanlış alarmı
+cezalandırır (1 = mükemmel, 0 = hiç alarm vermemek). Model eşiği validasyonda seçildi. Yarışma kazananı 0.36 aldı ama
+o skor **görülmemiş üçüncü bir hastanede** ölçüldü; bizimki aynı iki hastanenin ayrılmış test hastalarında, bu yüzden
+**doğrudan karşılaştırılamaz**. qSOFA ve NEWS2 bilinç (GKS) verisi olmadığı için kısmi hesaplandı (`scripts/evaluate_clinical.py`).
+
 ### İki çalışma noktası
 
 | Eşik | Duyarlılık | Özgüllük | PPV | NPV | Kullanım |
@@ -164,6 +189,12 @@ SpO2 88, Laktat 4.5, WBC 17) dönen hasta:
 | 6 | %3.9 | **%35.5** |
 | 24 | %6.0 | **%35.6** |
 | 72 | %10.3 | **%65.3** |
+
+### Tahmin açıklaması
+
+Her tahminde **skoru en çok artıran ve azaltan faktörler** gösterilir (ör. “Ateş 39.1 °C, 6 saatte +2.3 → +15 puan”).
+LightGBM ağaçlarındaki karar yolu izlenir; her bölünmede skorun değişimi o özelliğe yazılır (Saabas yöntemi) ve
+281 özellik klinik değişkene göre toplanır (`explain.py`). Katkıların toplamı modelin skoruna eşittir (testle doğrulanır).
 
 ### En önemli özellikler
 
@@ -325,6 +356,23 @@ Tüm `/api/*` uçları (giriş ve sağlık kontrolü hariç) oturum ister; paran
 
 ---
 
+## 🧪 Testler
+
+```bash
+py -3.10 -m pytest                    # tüm testler (model dahil)
+py -3.10 -m pytest -m "not model"     # modelsiz hızlı testler
+sistem_kontrol.bat                    # sunum öncesi uçtan uca kontrol
+```
+
+| Dosya | Ne test ediliyor |
+|-------|------------------|
+| `tests/test_security.py` | Şifre hash'i ve kuralı, 5 hatada kilit, 30 dk oturum zaman aşımı, token'ın hash'li saklanması, rol × uç nokta yetki matrisi |
+| `tests/test_database.py` | CHECK / UNIQUE / FK kısıtları, CASCADE silme, değiştirilemez denetim kaydı, eski veritabanından taşıma |
+| `tests/test_features.py` | **Geleceğe bakmama** (sonraki saatler eklenince geçmiş özellikler değişmez), ileri doldurma, hastalar arası karışmama |
+| `tests/test_gbm_numpy.py` | NumPy ağaç değerlendiricisinde eksik değer kuralları, açıklama katkılarının toplamı = skor |
+| `tests/test_utility.py` | Vektörel Utility hesabının resmi tanımla birebir aynı olması |
+| `tests/test_api.py` | Boş form, yetersiz veri, septik > normal, alarm, açıklama, taburcu, anonim veri seti |
+
 ## 🏗️ Mimari
 
 ### Sistem
@@ -454,14 +502,14 @@ ROC-AUC 0.806 → **0.847** (hedef 0.83–0.85). Kalan adımlar:
 
 | Hafta | Konu | Ana teknikler |
 |-------|------|---------------|
-| 1 | Değerlendirme altyapısı | GroupKFold, PhysioNet Utility Score, qSOFA/NEWS2 karşılaştırması |
+| ✅ 1 | Değerlendirme altyapısı | 5 katlı GroupKFold, PhysioNet Utility, SIRS/qSOFA/NEWS2 karşılaştırması — **yapıldı** |
 | ✅ 2 | Özellik mühendisliği | Ölçümden geçen süre, 6/24 saatlik ve yatıştan bu yana trendler, SOFA, şok indeksi — **yapıldı** |
 | ◐ 3 | Mimari | 24 saatlik pencere GRU denendi — **yapıldı**; GRU-D, TCN, Transformer, Optuna kaldı |
 | ✅ 4 | Topluluk | LightGBM (3 seed) + sinir ağı birleşimi, kalibrasyon — **yapıldı** |
-| 5 | Açıklanabilirlik | SHAP, Integrated Gradients, Deep Ensembles, conformal prediction |
-| 6 | Dış doğrulama ve rapor | Hastane A → B testi, alt grup analizi, pytest, Docker |
+| ◐ 5 | Açıklanabilirlik | Tahmin başına faktör açıklaması (Saabas) — **yapıldı**; TreeSHAP, conformal prediction kaldı |
+| ◐ 6 | Dış doğrulama ve rapor | pytest (63 test) — **yapıldı**; hastane A → B testi, alt grup analizi, Docker kaldı |
 
-**Hedef:** ROC-AUC 0.83–0.85 ✅ (0.847) · Utility ≥ 0.30 (PhysioNet 2019 kazananı: 0.36) — ölçülmedi.
+**Hedef:** ROC-AUC 0.83–0.85 ✅ (0.847; CV 0.842 ± 0.009) · Utility ≥ 0.30 ✅ (0.427, iç test).
 
 Ayrıntılar: [docs/PROJE_PLANI_6_HAFTA.md](docs/PROJE_PLANI_6_HAFTA.md) · Mimari açıklaması: [docs/MIMARI_ACIKLAMA.md](docs/MIMARI_ACIKLAMA.md)
 
@@ -481,12 +529,16 @@ Ayrıntılar: [docs/PROJE_PLANI_6_HAFTA.md](docs/PROJE_PLANI_6_HAFTA.md) · Mima
 ├── features_v4.py              # v4 zaman serisi özellikleri (eğitim ve uygulama ortak)
 ├── gbm_numpy.py                # LightGBM ağaçlarını saf NumPy ile çalıştırır
 ├── reliability.py              # Güvenilirlik skoru, MC-Dropout
+├── explain.py                  # Tahmin açıklaması: skoru en çok etkileyen faktörler
 ├── index.html / script.js / style.css   # Uygulama arayüzü
 ├── login.html / login.js       # Giriş ekranı
 │
 ├── scripts/
 │   ├── train_hybrid.py         # v4 hibrit model: eğitim, kalibrasyon, tek seferlik test
 │   ├── hasta_bazli_test.py     # Uygulama karar mantığıyla hasta bazlı test
+│   ├── evaluate_clinical.py    # SIRS / qSOFA / NEWS2 karşılaştırması + PhysioNet Utility
+│   ├── cv_hybrid.py            # 5 katlı hasta bazlı çapraz doğrulama
+│   ├── enrich_trees.py         # Ağaçlara açıklama için düğüm değerlerini ekler (model değişmeden)
 │   ├── experiments/            # Optimizasyon deneyleri (GRU pencere, MLP, LightGBM ayarı)
 │   ├── train_v3.py             # v3 eğitimi + kalibrasyon + değerlendirme
 │   ├── baseline_lightgbm.py    # Karşılaştırma modeli
@@ -499,6 +551,8 @@ Ayrıntılar: [docs/PROJE_PLANI_6_HAFTA.md](docs/PROJE_PLANI_6_HAFTA.md) · Mima
 │   ├── v3/                     # Önceki GRU modeli (SEPSIS_MODEL=v3)
 │   └── optimized/              # Eski model (SEPSIS_MODEL=legacy ile seçilir)
 │
+├── tests/                      # pytest birim ve entegrasyon testleri
+├── legacy/                     # Artık kullanılmayan eski dosyalar (açıklaması içinde)
 ├── data/train.csv              # PhysioNet 2019 (1,55M satır, 40.336 hasta)
 └── docs/
     ├── MIMARI_ACIKLAMA.md      # Katman katman model açıklaması

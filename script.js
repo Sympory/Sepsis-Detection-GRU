@@ -731,6 +731,24 @@ function renderAssessment(res) {
                 </div>
             </div>`;
 
+        const ex = rel.explanation;
+        if (ex && (ex.factors_up.length || ex.factors_down.length)) {
+            const maxPts = Math.max(1, ...[...ex.factors_up, ...ex.factors_down].map(f => Math.abs(f.points)));
+            const factorRow = f => `
+                <div class="factor ${f.points >= 0 ? 'up' : 'down'}">
+                    <div class="factor-text"><strong>${escapeHtml(f.label)}</strong><span>${escapeHtml(f.detail)}</span></div>
+                    <div class="factor-bar"><i style="width:${Math.max(4, Math.abs(f.points) / maxPts * 100)}%"></i></div>
+                    <b class="num">${f.points >= 0 ? '+' : ''}${f.points.toFixed(1)}</b>
+                </div>`;
+            relHtml += `
+                <div class="assess-section">
+                    <div class="assess-kicker"><span>Skoru etkileyen faktörler</span><span title="${escapeHtml(ex.method)}">yaklaşık puan</span></div>
+                    ${ex.factors_up.length ? `<div class="factor-group-title">Riski artıran</div>${ex.factors_up.map(factorRow).join('')}` : ''}
+                    ${ex.factors_down.length ? `<div class="factor-group-title">Riski azaltan</div>${ex.factors_down.map(factorRow).join('')}` : ''}
+                    <p class="factor-note">LightGBM dalının karar ağaçlarından hesaplanır; büyüklükler yaklaşıktır.</p>
+                </div>`;
+        }
+
         const items = [];
         (rel.red_flags || []).forEach(f => items.push(`<li class="flag">Klinik bayrak: ${escapeHtml(FIELD_BY_ID[f.feature]?.label || f.feature)} = ${escapeHtml(f.value)}</li>`));
         (rel.reasons || []).forEach((r, i) => items.push(`<li class="${i === 0 && rel.clinical_disagreement ? 'flag' : !rel.sufficient_data && i === 0 ? 'bad' : ''}">${escapeHtml(r)}</li>`));
@@ -1385,6 +1403,8 @@ async function loadModelInfo() {
 
         ${renderPatientLevel(st)}
         ${renderComparison(st, t)}
+        ${renderCrossValidation(modelInfo.cross_validation)}
+        ${renderClinicalComparison(modelInfo.clinical_comparison)}
         ${renderSanity(st.clinical_sanity)}
 
         <div class="grid-2">
@@ -1449,6 +1469,43 @@ function renderComparison(st, t) {
                 <tbody>${shown.map(r => `<tr><td><strong>${r[0]}</strong></td><td>${r[1]}</td><td class="num">${r[2].toFixed(3)}</td><td class="num">${r[3].toFixed(3)}</td><td class="muted small">${r[4]}</td></tr>`).join('')}</tbody>
             </table></div>
             <div class="prose"><p>İlk sürümün 0.88'i, veri saat saat rastgele bölündüğü için aynı hastanın bir saati eğitimde, sonraki saati testte bulunarak elde edildi. Yaş + cinsiyet + yatış süresi hastaların %93'ünü tek başına tanımladığından model hastayı “tanıyabiliyordu”. Hasta bazlı bölmede hiçbir test hastası eğitimde görülmez; gerçekçi değer budur.</p></div>
+        </div>`;
+}
+
+function renderCrossValidation(cv) {
+    if (!cv) return '';
+    const s = cv.summary;
+    const row = (label, key) => `<tr><td><strong>${label}</strong></td>
+        <td class="num">${s[key + '_roc_auc'].mean.toFixed(3)} ± ${s[key + '_roc_auc'].std.toFixed(3)}</td>
+        <td class="num">${s[key + '_pr_auc'].mean.toFixed(3)} ± ${s[key + '_pr_auc'].std.toFixed(3)}</td>
+        <td class="num muted">${s[key + '_roc_auc'].min.toFixed(3)} – ${s[key + '_roc_auc'].max.toFixed(3)}</td></tr>`;
+    return `
+        <div class="card">
+            <div class="card-head"><h2>${cv.k} katlı çapraz doğrulama</h2><span class="legend-note">${cv.n_patients.toLocaleString('tr-TR')} hasta, hasta bazlı · ortalama ± standart sapma</span></div>
+            <div class="table-wrap"><table class="table">
+                <thead><tr><th>Model</th><th>ROC-AUC</th><th>PR-AUC</th><th>ROC-AUC aralığı</th></tr></thead>
+                <tbody>${row('Hibrit', 'hybrid')}${row('LightGBM', 'lightgbm')}${row('Sinir ağı (MLP)', 'mlp')}</tbody>
+            </table></div>
+            <div class="prose"><p>Her hasta bir kez test katında yer alır. Düşük standart sapma, sonucun tek bir veri bölmesine bağlı olmadığını gösterir.</p></div>
+        </div>`;
+}
+
+function renderClinicalComparison(cc) {
+    if (!cc) return '';
+    const rows = Object.entries(cc.models).sort((x, y) => y[1].utility_test - x[1].utility_test).map(([name, m]) => `
+        <tr><td><strong>${escapeHtml(name)}</strong></td>
+            <td class="num">${m.roc_auc.toFixed(3)}</td><td class="num">${m.pr_auc.toFixed(3)}</td>
+            <td class="num">${m.utility_test.toFixed(3)}</td>
+            <td class="num">${pct(m.at_utility_threshold_sensitivity ?? m.at_cutoff_sensitivity, 0)} / ${pct(m.at_utility_threshold_specificity ?? m.at_cutoff_specificity, 0)}</td>
+            <td class="muted small">${m.cutoff ? 'kesim ' + escapeHtml(m.cutoff) : 'Utility eşiği (val.) ' + m.utility_threshold_val.toFixed(3)}</td></tr>`).join('');
+    return `
+        <div class="card">
+            <div class="card-head"><h2>Klinik skorlarla karşılaştırma ve PhysioNet Utility</h2></div>
+            <div class="table-wrap"><table class="table">
+                <thead><tr><th>Yöntem</th><th>ROC-AUC</th><th>PR-AUC</th><th>Utility</th><th>Duyarlılık / özgüllük</th><th>Alarm kuralı</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table></div>
+            <div class="prose"><p><strong>Utility</strong>, PhysioNet 2019 yarışmasının resmi metriğidir: sepsisten 12–6 saat önceki alarmı ödüllendirir, geç veya yanlış alarmı cezalandırır (1 = mükemmel, 0 = hiç alarm vermemek). Yarışma kazananı gizli bir hastanede 0.36 aldı; bizim değer aynı iki hastanenin ayrılmış test hastalarında ölçüldüğü için <strong>doğrudan karşılaştırılamaz</strong>. qSOFA ve NEWS2 bilinç (GKS) verisi olmadığı için kısmidir.</p></div>
         </div>`;
 }
 

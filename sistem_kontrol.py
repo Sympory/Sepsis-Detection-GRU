@@ -126,6 +126,9 @@ def main():
         cm = r_sep['reliability'].get('components_model') or {}
         check('Hibrit model: iki dal da çalışıyor', 'lightgbm' in cm and 'neural_net' in cm,
               f"LightGBM %{cm.get('lightgbm', 0) * 100:.1f} · sinir ağı %{cm.get('neural_net', 0) * 100:.1f}")
+        ex = r_sep['reliability'].get('explanation') or {}
+        ups = [f['label'] for f in ex.get('factors_up', [])]
+        check('Açıklama: riski artıran faktörler', bool(ups), ', '.join(ups))
         r_gap = nurse.post(f'/api/patients/{pid2}/hourly-data',
                            json={'hour': 9, 'vital_signs': dict(septic, Temp=39.1)}).get_json()
         check('Atlanan saatlerle tahmin (saatlik ızgara)', r_gap.get('success'), f"saat 2 → 9, skor %{r_gap['prediction'] * 100:.1f}")

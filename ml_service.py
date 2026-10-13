@@ -340,7 +340,13 @@ def _predict_v4(grid_rows):
     p_mlp = float(model.predict(x, verbose=0).reshape(-1)[0])
     prediction = gbm_weight * p_gbm + (1 - gbm_weight) * p_mlp
     mc_samples = gbm_weight * p_gbm + (1 - gbm_weight) * mc_dropout_predict(model, x)
-    return prediction, mc_samples, {'lightgbm': p_gbm, 'neural_net': p_mlp, 'weight_lightgbm': gbm_weight}
+    components = {'lightgbm': p_gbm, 'neural_net': p_mlp, 'weight_lightgbm': gbm_weight}
+    try:
+        from explain import explain
+        components['explanation'] = explain(gbm, feats.to_numpy()[0])
+    except Exception as e:   # açıklama tahmini asla engellememeli
+        print(f'  [WARN] Aciklama hesaplanamadi: {e}')
+    return prediction, mc_samples, components
 
 
 def assess(previous_hours, hour, vital_signs, demographics, transform_notes=None):
@@ -379,7 +385,10 @@ def assess(previous_hours, hour, vital_signs, demographics, transform_notes=None
     assessment['calibrated_probability'] = estimator.calibrate(prediction)
     assessment['unused_fields'] = [f for f in MODEL_UNUSED_FIELDS if f in vital_signs]
     if components:
+        explanation = components.pop('explanation', None)
         assessment['components_model'] = components
+        if explanation:
+            assessment['explanation'] = explanation
 
     if assessment['sufficient_data']:
         risk_text, risk_color, red_flags = get_risk_level(prediction, current)

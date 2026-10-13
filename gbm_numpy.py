@@ -21,7 +21,7 @@ ZERO_THRESHOLD = 1e-35
 
 def _flatten(tree):
     """İç içe ağaç yapısını dizilere çevirir. Çocuk < 0 ise yaprak: ~çocuk = yaprak indeksi."""
-    feat, thr, dleft, mtype, left, right, leaves = [], [], [], [], [], [], []
+    feat, thr, dleft, mtype, left, right, leaves, values = [], [], [], [], [], [], [], []
 
     def visit(node):
         if 'leaf_value' in node:
@@ -34,6 +34,7 @@ def _flatten(tree):
         thr.append(float(node['threshold']))
         dleft.append(bool(node['default_left']))
         mtype.append(MISSING[node.get('missing_type', 'None')])
+        values.append(float(node.get('internal_value', 0.0)))   # düğümün ortalama çıktısı (açıklama için)
         left.append(0)
         right.append(0)
         left[i] = visit(node['left_child'])
@@ -42,7 +43,7 @@ def _flatten(tree):
 
     root = visit(tree['tree_structure'])
     return {'feat': feat, 'thr': thr, 'dleft': dleft, 'mtype': mtype,
-            'left': left, 'right': right, 'leaf': leaves, 'root': root}
+            'left': left, 'right': right, 'leaf': leaves, 'value': values, 'root': root}
 
 
 def _export(booster):
@@ -102,6 +103,38 @@ class NumpyGBM:
     def predict(self, X):
         return 1.0 / (1.0 + np.exp(-self.predict_raw(X)))
 
+    def contributions(self, x):
+        """
+        Tek satır için özellik katkıları (log-odds), Saabas yöntemi: karar yolundaki her
+        bölünmede çocuk düğümün değeri ile düğümün değeri arasındaki fark, bölünmeyi yapan
+        özelliğe yazılır. Dönüş: (katkı dizisi, taban değer); taban + katkılar = ham skor.
+        """
+        x = np.asarray(x, dtype=np.float64).ravel()
+        contrib = np.zeros(len(self.feature_names))
+        bias = 0.0
+        for t in self.trees:
+            if 'value' not in t:
+                raise ValueError('Ağaç dosyasında düğüm değerleri yok (eski dışa aktarım)')
+            node = t['root']
+            if node < 0:
+                bias += t['leaf'][~node]
+                continue
+            bias += t['value'][node]
+            while node >= 0:
+                f = t['feat'][node]
+                v = x[f]
+                mt = t['mtype'][node]
+                nan = np.isnan(v)
+                if nan and mt == 0:
+                    v, nan = 0.0, False
+                missing = (mt == 2 and nan) or (mt == 1 and (nan or abs(v) <= ZERO_THRESHOLD))
+                go_left = t['dleft'][node] if missing else v <= t['thr'][node]
+                child = t['left'][node] if go_left else t['right'][node]
+                child_value = t['leaf'][~child] if child < 0 else t['value'][child]
+                contrib[f] += child_value - t['value'][node]
+                node = child
+        return contrib, bias
+
 
 class NumpyGBMEnsemble:
     """Farklı seed'lerle eğitilmiş modellerin olasılık ortalaması."""
@@ -112,4 +145,9 @@ class NumpyGBMEnsemble:
 
     def predict(self, X):
         return np.mean([m.predict(X) for m in self.members], axis=0)
+
+    def contributions(self, x):
+        """Üyelerin log-odds katkılarının ortalaması."""
+        parts = [m.contributions(x) for m in self.members]
+        return np.mean([c for c, _ in parts], axis=0), float(np.mean([b for _, b in parts]))
 
