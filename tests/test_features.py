@@ -64,3 +64,22 @@ def test_normalize_inputs_fio2_and_map():
     assert vs['FiO2'] == pytest.approx(0.40)
     assert vs['MAP'] == pytest.approx(80.0)
     assert len(notes) == 2
+
+
+@pytest.mark.parametrize('group', ['uzun', 'egim', 'esik', 'sapma', 'olcum'])
+def test_v5_groups_no_future_leakage(group):
+    """v5 ek grupları: t. saatin özellikleri sonraki saatler eklenince değişmemeli."""
+    from features_v5 import GROUPS
+    build = GROUPS[group]
+    short = build(patient(10, {3: {'Lactate': 2.0}}))
+    long = build(patient(40, {3: {'Lactate': 2.0}, **{h: {'HR': 150, 'Temp': 40.0, 'Lactate': 8.0} for h in range(10, 40)}}))
+    pd.testing.assert_frame_equal(short, long.iloc[:10])
+
+
+def test_v5_slope_and_run_length():
+    from features_v5 import group_egim, group_esik
+    df = patient(8)                                   # HR 80, 81, …, 87 → eğim 1/saat
+    assert group_egim(df)['HR_slope6'].iloc[7] == pytest.approx(1.0)
+    hot = patient(6, {h: {'Temp': 38.6} for h in (2, 3, 4)})
+    run = group_esik(hot)['abn_temp38_run'].tolist()
+    assert run == [0, 0, 1, 2, 3, 0]

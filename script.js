@@ -1464,9 +1464,10 @@ function renderComparison(st, t) {
     const lg = st.lightgbm_baseline;
     const c = st.components_test;
     const rows = c ? [
-        ['Hibrit v4 (aktif)', 'Hasta bazlı', c.hybrid.roc_auc, c.hybrid.pr_auc, `LightGBM ${Math.round(st.ensemble_weight_lightgbm * 100)}% + sinir ağı ${Math.round((1 - st.ensemble_weight_lightgbm) * 100)}%`],
-        ['└ LightGBM dalı', 'Hasta bazlı', c.lightgbm.roc_auc, c.lightgbm.pr_auc, 'Zaman serisi özellikleri, 3 seed'],
+        [`Hibrit ${c.hybrid_v4 ? 'v5' : 'v4'} (aktif)`, 'Hasta bazlı', c.hybrid.roc_auc, c.hybrid.pr_auc, `LightGBM ${Math.round(st.ensemble_weight_lightgbm * 100)}% + sinir ağı ${Math.round((1 - st.ensemble_weight_lightgbm) * 100)}%`],
+        ['└ LightGBM dalı', 'Hasta bazlı', c.lightgbm.roc_auc, c.lightgbm.pr_auc, c.hybrid_v4 ? 'Ayarlı, monoton kısıtlı, 3 seed' : 'Zaman serisi özellikleri, 3 seed'],
         ['└ Sinir ağı dalı (MLP)', 'Hasta bazlı', c.mlp.roc_auc, c.mlp.pr_auc, 'Aynı özellikler, 3 gizli katman'],
+        c.hybrid_v4 ? ['Hibrit v4', 'Hasta bazlı', c.hybrid_v4.roc_auc, c.hybrid_v4.pr_auc, 'Önceki sürüm: LightGBM 70% + sinir ağı 30%'] : null,
         ['GRU v3', 'Hasta bazlı', c.gru_v3.roc_auc, c.gru_v3.pr_auc, 'Son 6 saatin ham değerleri'],
     ] : [
         ['GRU v3 (aktif)', 'Hasta bazlı', t.roc_auc, t.pr_auc, 'İleri doldurma + ölçüm maskeleri'],

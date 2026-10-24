@@ -1,0 +1,104 @@
+{
+  "hospitals": {
+    "A": {
+      "patients": 20336,
+      "sepsis_patient_rate": 0.08802124311565697
+    },
+    "B": {
+      "patients": 20000,
+      "sepsis_patient_rate": 0.0571
+    }
+  },
+  "results": {
+    "A": {
+      "dış": {
+        "train_patients": 20000,
+        "test_patients": 6185,
+        "roc_auc": 0.783610404371851,
+        "pr_auc": 0.1033674939306916,
+        "lightgbm_roc_auc": 0.7792395406969365,
+        "mlp_roc_auc": 0.7666078910598284,
+        "prevalence": 0.02219553346576128,
+        "screen_threshold": 0.026892884865888655,
+        "screen_sensitivity": 0.782624976596143,
+        "screen_specificity": 0.6250887191714161,
+        "utility_threshold": 0.057818883375076714,
+        "utility": 0.3621318518790147
+      },
+      "iç": {
+        "train_patients": 14151,
+        "test_patients": 6185,
+        "roc_auc": 0.8192128473553892,
+        "pr_auc": 0.11835548934975129,
+        "lightgbm_roc_auc": 0.8180720762093345,
+        "mlp_roc_auc": 0.8042683814524939,
+        "prevalence": 0.02219553346576128,
+        "screen_threshold": 0.03327588511646508,
+        "screen_sensitivity": 0.7831866691630781,
+        "screen_specificity": 0.6951800521052476,
+        "utility_threshold": 0.04995069134897724,
+        "utility": 0.4220641352377112
+      },
+      "birleşik": {
+        "train_patients": 34151,
+        "test_patients": 6185,
+        "roc_auc": 0.8186605953875004,
+        "pr_auc": 0.12072158162844379,
+        "lightgbm_roc_auc": 0.8188505607861851,
+        "mlp_roc_auc": 0.795381033419392,
+        "prevalence": 0.02219553346576128,
+        "screen_threshold": 0.027961734316774848,
+        "screen_sensitivity": 0.8060288335517694,
+        "screen_specificity": 0.6662374146277195,
+        "utility_threshold": 0.05083082328750333,
+        "utility": 0.4246634030668061
+      }
+    },
+    "B": {
+      "dış": {
+        "train_patients": 20336,
+        "test_patients": 5916,
+        "roc_auc": 0.7850279953378603,
+        "pr_auc": 0.06934472755614948,
+        "lightgbm_roc_auc": 0.787043208561868,
+        "mlp_roc_auc": 0.7611836986371316,
+        "prevalence": 0.013634354645011228,
+        "screen_threshold": 0.03662100912398455,
+        "screen_sensitivity": 0.587426326129666,
+        "screen_specificity": 0.8278031492855494,
+        "utility_threshold": 0.060013151328931695,
+        "utility": 0.28370576979210566
+      },
+      "iç": {
+        "train_patients": 14084,
+        "test_patients": 5916,
+        "roc_auc": 0.846647622392954,
+        "pr_auc": 0.11236934063841664,
+        "lightgbm_roc_auc": 0.8417338065021891,
+        "mlp_roc_auc": 0.8346929200230582,
+        "prevalence": 0.013634354645011228,
+        "screen_threshold": 0.022755554289956067,
+        "screen_sensitivity": 0.777668631303209,
+        "screen_specificity": 0.7588610430933425,
+        "utility_threshold": 0.04817920117197806,
+        "utility": 0.3757597379431126
+      },
+      "birleşik": {
+        "train_patients": 34420,
+        "test_patients": 5916,
+        "roc_auc": 0.8497733477288769,
+        "pr_auc": 0.1161789520586734,
+        "lightgbm_roc_auc": 0.8475663806110073,
+        "mlp_roc_auc": 0.8274310968906057,
+        "prevalence": 0.013634354645011228,
+        "screen_threshold": 0.03280089963551061,
+        "screen_sensitivity": 0.7269155206286837,
+        "screen_specificity": 0.8110021318101377,
+        "utility_threshold": 0.05291801005336387,
+        "utility": 0.377329484643077
+      }
+    }
+  },
+  "test_fraction": 0.3,
+  "minutes": 13.015743064880372
+}

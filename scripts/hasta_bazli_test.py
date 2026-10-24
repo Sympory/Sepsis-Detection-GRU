@@ -20,18 +20,21 @@ df = pd.read_csv(os.path.join(ROOT, 'data', 'train.csv'))
 df = df.sort_values(['Patient_ID', 'ICULOS']).reset_index(drop=True).dropna(subset=['SepsisLabel'])
 test_ids = split_patients(df)['test']
 d = df[df.Patient_ID.isin(test_ids)].reset_index(drop=True)
-from config import FEATURE_SET, MODEL_INFO
+from config import FEATURE_SET, MODEL_INFO, MODEL_PATH
+MODEL_DIR = os.path.dirname(MODEL_PATH)
 groups = d.groupby('Patient_ID', sort=False).indices
 if FEATURE_SET == 'v4':
     # Uygulamadaki hibrit model: zaman serisi özellikleri → LightGBM (NumPy) + sinir ağı
     from features_v4 import build_v4
     from gbm_numpy import NumpyGBM
     F = build_v4(d, group_col='Patient_ID')
-    gbm = NumpyGBM.load(os.path.join(ROOT, 'models', 'v4', 'trees.json'))
-    scaler = pickle.load(open(os.path.join(ROOT, 'models', 'v4', 'scaler.pkl'), 'rb'))
-    mlp = keras.models.load_model(os.path.join(ROOT, 'models', 'v4', 'mlp.keras'))
+    gbm = NumpyGBM.load(os.path.join(MODEL_DIR, 'trees.json'))
+    scaler = pickle.load(open(os.path.join(MODEL_DIR, 'scaler.pkl'), 'rb'))
+    mlp = keras.models.load_model(os.path.join(MODEL_DIR, 'mlp.keras'))
     w = float(MODEL_INFO['ensemble_weight_lightgbm'])
     p = w * gbm.predict(F.to_numpy()) + (1 - w) * mlp.predict(scaler.transform(F), batch_size=16384, verbose=0).ravel()
+    from olcek import ScoreMap
+    p = ScoreMap.load(MODEL_DIR)(p)          # uygulamayla aynı ölçek (v5: v4 ölçeğine eşlenir)
 else:
     tr = pickle.load(open(os.path.join(ROOT, 'models', 'v3', 'transformer.pkl'), 'rb'))
     model = keras.models.load_model(os.path.join(ROOT, 'models', 'v3', 'model.keras'))
@@ -109,3 +112,5 @@ for pid in rng.choice(late_ids, 5, replace=False):
                                zip(range(lo, hi), x.p.values[lo:hi], x.pts.values[lo:hi], x.gate_now.values[lo:hi])]})
 out['examples'] = examples
 print(json.dumps(out, indent=1, ensure_ascii=False, default=lambda o: o.item() if hasattr(o, 'item') else str(o)))
+with open(os.path.join(MODEL_DIR, 'hasta_bazli_test.json'), 'w', encoding='utf-8') as fh:
+    json.dump(out, fh, indent=1, ensure_ascii=False, default=lambda o: o.item() if hasattr(o, 'item') else str(o))

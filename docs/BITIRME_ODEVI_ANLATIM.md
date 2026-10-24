@@ -60,13 +60,49 @@ yalnızca en sonda **bir kez** kullanıldı.
 | v24 | GRU + sentetik biyobelirteç | — | 0.9997 | sızıntı — geçersiz |
 | optimized v1 | medyan doldurma + sinir ağı | hasta bazlı | 0.809 | vital bulgulara tepkisiz |
 | GRU v3 | ileri doldurma + ölçüm maskesi, 6 saat × 71 özellik | hasta bazlı | 0.806 | ilk dürüst model |
-| **Hibrit v4** | **281 zaman serisi özelliği → LightGBM + MLP** | hasta bazlı | **0.847** | aktif model |
+| Hibrit v4 | 281 zaman serisi özelliği → LightGBM + MLP | hasta bazlı | 0.847 | önceki sürüm |
+| **Hibrit v5** | **aynı özellikler; ayarlı, monoton kısıtlı LightGBM + MLP** | hasta bazlı | **0.848** | aktif model (bkz. 3b) |
 
 **Bulgu:** GRU, LSTM, farklı pencere uzunlukları gibi 7 mimari denendi; hepsi 0.80–0.81'de toplandı
 (`scripts/experiments/`). Sorun mimaride değil, **modelin gördüğü bilgideydi**: 6 saatlik pencere uzun vadeli
 eğilimleri göremiyordu ve GRU'lar 1–2 epokta hastaları ezberliyordu. Çözüm, eğilimleri açıkça hesaplayan
 **özellik mühendisliği** oldu. Bu özelliklerle LightGBM tek başına 0.847'ye çıktı; aynı özelliklerle eğitilen sinir ağı
 0.823 aldı; ikisini birleştirmek tek modelden daha **kararlı** sonuç verdi.
+
+### 3b. v5 — hedefli model geliştirme deneyleri (`scripts/v5/`)
+
+Hedef 0.87 idi. Yöntem bilinçli olarak sıkı tutuldu, çünkü çok sayıda deneme şans eseri iyi sonuç üretebilir:
+
+- **Kilitli test:** Test hastaları (8.066) deneylerin hiçbirinde kullanılmadı, yalnızca finalde bir kez açıldı.
+- **Aynı 5 kat:** Bütün deneyler geliştirme hastalarında (32.270) aynı 5 katlı çapraz doğrulamayla yapıldı.
+- **Eşleştirilmiş karşılaştırma:** İki deney ortalamayla değil, aynı kattaki farkla karşılaştırıldı; katın zorluğu hesaptan çıkar.
+- **Karar kuralı:** Değişiklik ancak 5 katın ≥4'ünde iyileşir ve ROC-AUC ≥ +0.002 artarsa kalır.
+- **Veri bütünlüğü:** `train.csv` resmi PhysioNet sayılarıyla birebir doğrulandı (`scripts/v5/veri_kontrol.py`). Sentetik biyobelirteç içeren eski dosyalar silindi.
+
+| Deney | CV ROC-AUC farkı | Karar | Yorum |
+|---|---|---|---|
+| 5 yeni özellik grubu (48/72 saat pencere, eğim, eşik aşım sayısı, kişisel z-skoru, test isteme yoğunluğu) | −0.001 … +0.001 | ✗ | Özellik tarafı doymuş: 281 özellik bilgiyi zaten taşıyor |
+| Rastgele ayar arama, 30 deneme (Optuna yerine kendi yazdığımız, ek paket gerektirmez) | +0.0022 (5/5) | ✓ | Yavaş öğrenme (0.011), her ağaçta özelliklerin %21'i |
+| 3 seed + sinir ağıyla birleşim, ağırlık kat dışında seçildi | +0.0041 (5/5) | ✓ | LightGBM güçlenince MLP payı %30'dan %5–10'a indi |
+| Satır ağırlıklandırma (sepsis sonrası ×0.3, erken pencere ×2) | −0.003 / −0.002 | ✗ | Etiket yapısı zaten iyi öğrenilmiş |
+| Monoton kısıt (MAP/SBP/SpO2 ↓, laktat ↑ → risk düşemez) | nötr; PR-AUC 5/5 + | ✓ | Klinik tutarlılık; MAP'e ters tepki düzeldi |
+
+**Final (kilitli test, tek seferlik):**
+
+| | v4 | v5 |
+|---|---|---|
+| ROC-AUC | 0.847 | **0.848** |
+| CV (geliştirme hastaları) | 0.8365 | **0.8406** |
+| Tarama eşiğinde yanlış alarm alan hasta | %58 | **%54** |
+| Görülmemiş hastane B | 0.777 | **0.785** |
+
+Dürüst sonuç: 0.87'ye ulaşılamadı. Deneyler bu veride tavanın ~0.85 olduğunu gösterdi; kazanç yeni özelliklerden
+değil, ayar ve birleşimden geldi.
+
+**Ölçek eşitleme (`olcek.py`):** v5'te sepsis örnek ağırlığı 5'ten 1.9'a indiği için ham skorlar v4'ün yarı ölçeğindeydi.
+Risk sınıfları (Yüksek ≥ 0.35) ve klinik kurallar v4 ölçeğine göre ayarlı olduğundan, v5 skoru validasyon
+hastalarındaki sırasına göre v4 ölçeğine çevrilir (yüzdelik eşleme). Sıra korunduğu için AUC değişmez; eşikler
+0.332 ve 0.066 çıktı, v4'ünkilerle aynı (`scripts/v5/olcek_esitle.py`).
 
 ---
 
@@ -335,7 +371,7 @@ klinik karşılaştırmayı ve tutarlılık testini gösterir. Yönetici için k
 
 ---
 
-## 10. Testler — `tests/` (pytest, 64 test)
+## 10. Testler — `tests/` (pytest, 73 test)
 
 | Dosya | Neyi doğrular |
 |---|---|

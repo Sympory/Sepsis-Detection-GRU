@@ -30,7 +30,7 @@ Uygulama her tahmin için ayrıca **bu tahminin ne kadar güvenilir olduğunu** 
 
 - **40.336 hasta, 1,55 milyon saatlik kayıt** — PhysioNet / Computing in Cardiology Challenge 2019 verisi
 - **Hasta bazlı test** — test hastalarının hiçbiri eğitimde görülmedi; test seti yalnızca bir kez kullanıldı
-- **ROC-AUC 0.847, PR-AUC 0.132** — 8.066 görülmemiş test hastasında (önceki GRU: 0.806 / 0.095)
+- **ROC-AUC 0.848, PR-AUC 0.132** — 8.066 görülmemiş test hastasında (v5; önceki GRU: 0.806 / 0.095)
 - **Hibrit model** — 281 zaman serisi özelliği üzerinde sinir ağı (MLP) + LightGBM; ağaçlar uygulamada saf NumPy ile çalışır
 - **Klinik tutarlılık** — aynı saatte normal vitallere %6, septik vitallere %36 risk
 - **Güvenilirlik skoru** — MC-Dropout belirsizliği, veri tamlığı, izotonik kalibrasyon
@@ -124,9 +124,10 @@ Model seçimi, birleşim ağırlığı, kalibrasyon ve eşik **validasyon** hast
 
 | Model | ROC-AUC | PR-AUC |
 |-------|---------|--------|
-| **Hibrit v4 (aktif)** — 0.7 × LightGBM + 0.3 × sinir ağı | **0.847** | **0.132** |
-| └ LightGBM dalı | 0.847 | 0.131 |
-| └ Sinir ağı dalı (MLP) | 0.823 | 0.113 |
+| **Hibrit v5 (aktif)** — 0.95 × LightGBM (ayarlı, monoton) + 0.05 × sinir ağı | **0.848** | **0.132** |
+| └ LightGBM dalı | 0.848 | 0.132 |
+| └ Sinir ağı dalı (MLP) | 0.822 | 0.114 |
+| Hibrit v4 — 0.7 × LightGBM + 0.3 × sinir ağı | 0.847 | 0.132 |
 | GRU v3 (önceki model, son 6 saat) | 0.806 | 0.095 |
 
 | Metrik | Değer |
@@ -135,7 +136,35 @@ Model seçimi, birleşim ağırlığı, kalibrasyon ve eşik **validasyon** hast
 | Brier (ham → kalibre) | 0.023 → 0.017 |
 | ECE (ham → kalibre) | 0.048 → 0.002 |
 
-### 5 katlı çapraz doğrulama (40.336 hasta, hasta bazlı)
+### v5 — sistematik model geliştirme (`scripts/v5/`)
+
+v4'ün üzerine hedefli deneyler yapıldı. Kurallar: test hastaları kilitli; bütün kararlar geliştirme hastalarında
+(32.270) 5 katlı çapraz doğrulamayla; bir değişiklik ancak **5 katın en az 4'ünde** iyileşir ve ROC-AUC'yi
+**≥ +0.002** artırırsa kalır (eşleştirilmiş, kat kat karşılaştırma). Sonuçların tamamı `models/v5/deneyler.json`.
+
+| Deney | ROC-AUC farkı (CV) | Karar |
+|-------|--------------------|-------|
+| Yeni özellik grupları: 48/72 saat, eğim, eşik aşımı, kişisel sapma, ölçüm örüntüsü | −0.001 … +0.001 | ✗ özellik tarafı doymuş |
+| Rastgele ayar arama (30 deneme) → yavaş öğrenme (0.011), %21 özellik örneklemi | +0.0022 (5/5 kat) | ✓ |
+| 3 seed | +0.0031 | ✓ |
+| Sinir ağıyla birleşim, ağırlık kat dışında seçildi (LightGBM payı 0.90–0.95) | **+0.0041** (5/5 kat) | ✓ |
+| Sepsis sonrası saatleri ×0.3 / erken pencereyi ×2 ağırlıklandırma | −0.003 / −0.002 | ✗ |
+| Monoton kısıt (MAP, SBP, SpO2 ↓ veya laktat ↑ iken risk düşemez) | ROC nötr, PR-AUC 5/5 katta + | ✓ klinik tutarlılık |
+
+| | v4 | **v5 (aktif)** |
+|---|---|---|
+| Test ROC-AUC / PR-AUC (tek seferlik) | 0.847 / 0.132 | **0.848 / 0.132** |
+| Çapraz doğrulama ROC-AUC (geliştirme hastaları) | 0.8365* | **0.8406 ± 0.006** |
+| MAP 58 olunca skor | −0.3 puan ❌ | **+0.8 puan** ✅ |
+| Tarama eşiğinde yakalanan / yanlış alarm alan hasta | %94 / %58 | **%95 / %54** |
+| Görülmemiş hastane B'de ROC-AUC | 0.777 | **0.785** |
+
+\* v4 ayarlarıyla aynı katlarda tek seed LightGBM (deneylerin temel çizgisi).
+Hedeflenen 0.87'ye ulaşılamadı; deneyler bu veride tavanın ~0.85 olduğunu gösteriyor (özellikler doymuş, ayar
+kazancı küçük). v5 skorları risk sınıflarıyla uyumlu olsun diye v4 ölçeğine yüzdelik eşlemeyle çevrilir
+(`olcek.py`; sırayı korur, AUC değişmez).
+
+### 5 katlı çapraz doğrulama — v4 (40.336 hasta, hasta bazlı)
 
 | Model | ROC-AUC | PR-AUC |
 |-------|---------|--------|
@@ -172,7 +201,7 @@ Eşikler her modelin kendi eğitim hastanesinde seçildi.
 
 | Yöntem | ROC-AUC | PR-AUC | Utility |
 |--------|---------|--------|---------|
-| **Hibrit v4** | **0.847** | **0.132** | **0.427** |
+| **Hibrit v5** | **0.848** | **0.132** | **0.429** |
 | GRU v3 | 0.806 | 0.095 | 0.358 |
 | NEWS2 (kısmi, ≥ 5) | 0.682 | — | 0.115 |
 | SIRS (≥ 2) | 0.649 | — | 0.054 |
@@ -512,7 +541,8 @@ py -3.10 scripts/baseline_lightgbm.py           # aynı veride LightGBM karşıl
 | **Optimized v1** | 0.809 | Eksikler medyanla dolduruldu. Labların %90+'ı eksik olduğu için model değeri değil “ölçülmüş mü” bilgisini öğrendi: **düşük laktat riski artırıyordu**, septik hastaya %7 veriyordu. | İleri doldurma + açık ölçüm maskeleri |
 | **v3 (ilk deneme)** | 0.808 | Eğitim AUC 0.92, validasyon 0.75: `HospAdmTime` ile hasta ezberleniyordu. | `HospAdmTime` çıkarıldı, gürültü + L2 eklendi |
 | **v3** | 0.806 | Model son 6 saatin ham değerlerini görüyor; eğilimi kendisi çıkarmak zorunda | Zaman serisi özellikleri |
-| **v4 (hibrit)** | **0.847** | — | Özellik mühendisliği + sinir ağı/LightGBM birleşimi, saf NumPy ağaçlar |
+| **v4 (hibrit)** | 0.847 | — | Özellik mühendisliği + sinir ağı/LightGBM birleşimi, saf NumPy ağaçlar |
+| **v5** | **0.848** | Ek özellikler kazanç getirmedi (veri tavanı); MAP'e tepki ters yöndeydi | Ayar arama, seçilen birleşim ağırlığı, monoton kısıt, ölçek eşitleme |
 
 **Ana ders:** Daha yüksek AUC her zaman daha iyi model demek değildir. 0.88'lik model, görmediği
 hastada 0.81'lik modelden daha iyi değildi. Doğru değerlendirme yöntemi metrik kadar önemlidir.
@@ -531,7 +561,7 @@ ROC-AUC 0.806 → **0.847** (hedef 0.83–0.85). Kalan adımlar:
 | ◐ 3 | Mimari | 24 saatlik pencere GRU denendi — **yapıldı**; GRU-D, TCN, Transformer, Optuna kaldı |
 | ✅ 4 | Topluluk | LightGBM (3 seed) + sinir ağı birleşimi, kalibrasyon — **yapıldı** |
 | ◐ 5 | Açıklanabilirlik | Tahmin başına faktör açıklaması (Saabas) — **yapıldı**; TreeSHAP, conformal prediction kaldı |
-| ◐ 6 | Dış doğrulama ve rapor | pytest (64 test), hastane A ↔ B testi — **yapıldı**; alt grup analizi, Docker kaldı |
+| ◐ 6 | Dış doğrulama ve rapor | pytest (73 test), hastane A ↔ B testi — **yapıldı**; alt grup analizi, Docker kaldı |
 
 **Hedef:** ROC-AUC 0.83–0.85 ✅ (0.847; CV 0.842 ± 0.009) · Utility ≥ 0.30 ✅ (0.427, iç test).
 

@@ -1,0 +1,52 @@
+{
+  "note": "Test hastaları (8.066). qSOFA ve NEWS2 bilinç (GKS) olmadan kısmi hesaplandı. Utility eşikleri validasyonda seçildi.",
+  "models": {
+    "Hibrit v5": {
+      "roc_auc": 0.8484027052528097,
+      "pr_auc": 0.13239308935816715,
+      "utility_threshold_val": 0.047646469479550944,
+      "utility_val": 0.44879065402036905,
+      "utility_test": 0.42937764771131587,
+      "at_utility_threshold_sensitivity": 0.657932519741565,
+      "at_utility_threshold_specificity": 0.8509158197848739,
+      "at_utility_threshold_ppv": 0.075024557956778
+    },
+    "GRU v3": {
+      "roc_auc": 0.805538055183132,
+      "pr_auc": 0.09542228500827307,
+      "utility_threshold_val": 0.09771323867521044,
+      "utility_val": 0.3620080564769533,
+      "utility_test": 0.35759295753041603,
+      "at_utility_threshold_sensitivity": 0.5838119167264896,
+      "at_utility_threshold_specificity": 0.8539438138872122,
+      "at_utility_threshold_ppv": 0.06843666505375214
+    },
+    "SIRS": {
+      "roc_auc": 0.6490202131903209,
+      "pr_auc": 0.031667480940856176,
+      "cutoff": "≥ 2",
+      "utility_test": 0.05404635191107294,
+      "at_cutoff_sensitivity": 0.5251256281407035,
+      "at_cutoff_specificity": 0.7001131374702726,
+      "at_cutoff_ppv": 0.031179736368189423
+    },
+    "qSOFA (kısmi)": {
+      "roc_auc": 0.5930763960614696,
+      "pr_auc": 0.023729179450092182,
+      "cutoff": "≥ 2",
+      "utility_test": 0.023029630765963593,
+      "at_cutoff_sensitivity": 0.07735104091888012,
+      "at_cutoff_specificity": 0.965392468276979,
+      "at_cutoff_ppv": 0.03945802435228417
+    },
+    "NEWS2 (kısmi)": {
+      "roc_auc": 0.6822238875265518,
+      "pr_auc": 0.03720742649447087,
+      "cutoff": "≥ 5",
+      "utility_test": 0.11457288507605405,
+      "at_cutoff_sensitivity": 0.4775664034458004,
+      "at_cutoff_specificity": 0.7701099379558071,
+      "at_cutoff_ppv": 0.03677598573738546
+    }
+  }
+}

@@ -1,6 +1,11 @@
 """
-Sepsis Hibrit Model (v4) — eğitim, kalibrasyon ve TEK SEFERLİK test değerlendirmesi
-=================================================================================
+Sepsis Hibrit Model (v4 / v5) — eğitim, kalibrasyon ve TEK SEFERLİK test değerlendirmesi
+=======================================================================================
+
+İki profil (SEPSIS_SURUM ortam değişkeni, varsayılan v5):
+  v4 — ilk hibrit: LightGBM öğrenme hızı 0.03, 31 yaprak; birleşim ağırlığı PR-AUC ile seçilir.
+  v5 — model geliştirme deneylerinin sonucu (scripts/v5, models/v5/deneyler.json): ayar arama #12,
+       MAP/SBP/SpO2/laktat için monoton kısıt, birleşim ağırlığı ROC-AUC ile seçilir.
 
 Model: zaman serisi özellikleri (features_v4, 281 özellik) üzerinde
     LightGBM (3 seed topluluğu)  +  çok katmanlı sinir ağı (MLP)
@@ -13,11 +18,12 @@ Sıra bilinçli: LightGBM eğitimi TensorFlow yüklenmeden yapılır (Windows'ta
 süreçte DLL çakışması var). Ağaçlar JSON'a aktarılır ve uygulamada saf NumPy ile
 çalıştırılır (gbm_numpy.py); NumPy tahmininin LightGBM ile aynı olduğu doğrulanır.
 
-Çıktılar: models/v4/
+Çıktılar: models/<sürüm>/
   trees.json, mlp.keras, scaler.pkl, calibrator.pkl, model_card.json,
   reliability_stats.json, training_history.json, evaluation.png
 
-  py -3.10 scripts/train_hybrid.py
+  py -3.10 scripts/train_hybrid.py                    # v5
+  set SEPSIS_SURUM=v4 && py -3.10 scripts/train_hybrid.py   # ilk hibrit model (yeniden üretmek için)
 """
 
 import json
@@ -48,11 +54,29 @@ from fit_calibration import ece, reliability_curve, threshold_metrics
 from gbm_numpy import NumpyGBM, export_lightgbm
 from train_v3 import split_patients
 
-OUT = os.path.join(ROOT, 'models', 'v4')
+VERSION = os.environ.get('SEPSIS_SURUM', 'v5')
+OUT = os.path.join(ROOT, 'models', VERSION)
 SEEDS = (42, 7, 2024)
-LGBM_PARAMS = dict(objective='binary', metric='None', learning_rate=0.03, num_leaves=31, min_child_samples=1000,
-                   feature_fraction=0.4, bagging_fraction=0.8, bagging_freq=1, lambda_l2=20.0,
-                   scale_pos_weight=5.0, verbose=-1)
+_V4_LGBM = dict(objective='binary', metric='None', learning_rate=0.03, num_leaves=31, min_child_samples=1000,
+                feature_fraction=0.4, bagging_fraction=0.8, bagging_freq=1, lambda_l2=20.0,
+                scale_pos_weight=5.0, verbose=-1)
+# v5: scripts/v5/ayar_ara.py deneme #12, 5 katta doğrulandı (ROC-AUC +0.0022, 5/5 kat)
+_V5_LGBM = dict(_V4_LGBM, learning_rate=0.0106, num_leaves=32, min_child_samples=2274, feature_fraction=0.209,
+                bagging_fraction=0.669, lambda_l2=4.40, scale_pos_weight=1.87, max_depth=12, min_gain_to_split=0.1)
+LGBM_PARAMS = _V5_LGBM if VERSION == 'v5' else _V4_LGBM
+# v5: değer kötüleştikçe risk düşemez (−1: değer düştükçe risk artar). PR-AUC 5/5 katta +, ROC-AUC nötr
+MONOTONE = {'MAP': -1, 'SBP': -1, 'O2Sat': -1, 'Lactate': 1} if VERSION == 'v5' else {}
+BLEND_METRIC = roc_auc_score if VERSION == 'v5' else average_precision_score
+
+
+def monotone_vector(cols):
+    """Değişkenin kendisi ve pencere istatistikleri (ortalama/min/maks) kısıtlanır; süre, sayı, değişim serbest."""
+    vec = []
+    for c in cols:
+        base, _, suffix = c.partition('_')
+        ok = suffix == '' or any(suffix.startswith(x) for x in ('mean', 'min', 'max'))
+        vec.append(MONOTONE.get(base, 0) if ok else 0)
+    return vec
 
 
 def log(msg):
@@ -68,9 +92,12 @@ def train_lightgbm(F, y, tr, va):
     dval = lgb.Dataset(F[va], y[va], reference=dtrain, free_raw_data=False)
     pr = lambda p, d: ('pr_auc', average_precision_score(d.get_label(), p), True)
     boosters, info = [], []
+    base = dict(LGBM_PARAMS)
+    if MONOTONE:
+        base['monotone_constraints'] = monotone_vector(list(F.columns))
     for seed in SEEDS:
-        params = dict(LGBM_PARAMS, seed=seed, bagging_seed=seed, feature_fraction_seed=seed)
-        b = lgb.train(params, dtrain, num_boost_round=4000, valid_sets=[dval], feval=pr,
+        params = dict(base, seed=seed, bagging_seed=seed, feature_fraction_seed=seed)
+        b = lgb.train(params, dtrain, num_boost_round=6000, valid_sets=[dval], feval=pr,
                       callbacks=[lgb.early_stopping(200, verbose=False)])
         b = lgb.Booster(model_str=b.model_to_string(num_iteration=b.best_iteration))
         p = b.predict(F[va])
@@ -176,7 +203,7 @@ def main():
     pm_val = mlp.predict(X[va], batch_size=16384, verbose=0).ravel()
     pm_test = mlp.predict(X[te], batch_size=16384, verbose=0).ravel()
     weights = np.round(np.arange(0, 1.01, 0.05), 2)
-    scores = [average_precision_score(y[va], w * pg_val + (1 - w) * pm_val) for w in weights]
+    scores = [BLEND_METRIC(y[va], w * pg_val + (1 - w) * pm_val) for w in weights]
     w_gbm = float(weights[int(np.argmax(scores))])
     p_val = w_gbm * pg_val + (1 - w_gbm) * pm_val
     p_test = w_gbm * pg_test + (1 - w_gbm) * pm_test
@@ -196,6 +223,10 @@ def main():
     }
     v3_stats = json.load(open(os.path.join(ROOT, 'models', 'v3', 'reliability_stats.json'), encoding='utf-8'))
     comp['gru_v3'] = {'roc_auc': v3_stats['test']['roc_auc'], 'pr_auc': v3_stats['test']['pr_auc']}
+    v4_path = os.path.join(ROOT, 'models', 'v4', 'reliability_stats.json')
+    if VERSION == 'v5' and os.path.exists(v4_path):
+        v4_stats = json.load(open(v4_path, encoding='utf-8'))
+        comp['hybrid_v4'] = {'roc_auc': v4_stats['test']['roc_auc'], 'pr_auc': v4_stats['test']['pr_auc']}
     hours = df['Hour'].to_numpy()[te]
 
     # MC-Dropout (MLP kısmı): belirsizlik, karar uyumu ile doğruluk ilişkisi
@@ -239,7 +270,7 @@ def main():
                         and sum(v['delta'] >= 0 for v in sanity['single_feature'].values()) >= 6)
 
     stats = {
-        'model_path': 'models/v4',
+        'model_path': f'models/{VERSION}',
         'prevalence_test': float(yt.mean()), 'n_val': int(va.sum()), 'n_test': int(te.sum()),
         'n_patients': {k: len(v) for k, v in parts.items()},
         'test': {
@@ -268,7 +299,7 @@ def main():
     }
     card = {
         'name': 'Hibrit: LightGBM (3 seed) + Sinir Ağı (MLP)',
-        'version': 'v4 (zaman serisi özellikleri)',
+        'version': 'v5 (ayarlı, monoton kısıtlı)' if VERSION == 'v5' else 'v4 (zaman serisi özellikleri)',
         'feature_set': 'v4',
         'params': int(mlp.count_params()),
         'n_trees': int(sum(i['trees'] for i in lgbm_info)),
@@ -277,13 +308,15 @@ def main():
         'threshold': best_f1_t,
         'ensemble_weight_lightgbm': w_gbm,
         'input_shape': [int(X.shape[1])],
-        'loss_function': 'Binary Cross-Entropy (pozitif sınıf ağırlığı 5) · LightGBM: binary, scale_pos_weight 5',
+        'loss_function': f'Binary Cross-Entropy (pozitif sınıf ağırlığı 5) · LightGBM: binary, scale_pos_weight {LGBM_PARAMS["scale_pos_weight"]}',
         'trained_date': time.strftime('%Y-%m-%d'),
         'architecture': [
             f'Girdi: {X.shape[1]} zaman serisi özelliği (son değer, ölçüm maskesi, son ölçümden geçen süre, '
             '6/24 saatlik ve yatıştan bu yana ortalama-min-maks-std, değişim, SIRS/SOFA/şok indeksi)',
-            f'Dal 1 — LightGBM: 3 seed × ~{int(np.mean([i["trees"] for i in lgbm_info]))} ağaç, 31 yaprak, L2=20 '
-            '(uygulamada saf NumPy ile çalışır)',
+            f'Dal 1 — LightGBM: 3 seed × ~{int(np.mean([i["trees"] for i in lgbm_info]))} ağaç, '
+            f'{LGBM_PARAMS["num_leaves"]} yaprak, öğrenme hızı {LGBM_PARAMS["learning_rate"]}, L2={LGBM_PARAMS["lambda_l2"]}'
+            + (', monoton kısıt: MAP/SBP/SpO2 ↓ veya laktat ↑ iken risk düşemez' if MONOTONE else '')
+            + ' (uygulamada saf NumPy ile çalışır)',
             'Dal 2 — Sinir ağı: GaussianNoise(0.1) → Dense(256, ReLU) → BatchNorm → Dropout(0.5) '
             '→ Dense(128, ReLU) → BatchNorm → Dropout(0.5) → Dense(64, ReLU) → Dropout(0.5) → Dense(1, Sigmoid)',
             f'Birleşim: {w_gbm:.2f} × LightGBM + {1 - w_gbm:.2f} × MLP (validasyonda seçildi)',

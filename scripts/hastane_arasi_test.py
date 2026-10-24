@@ -13,7 +13,7 @@ Eşikler (tarama: duyarlılık >= %80, Utility) her modelin kendi eğitim hastan
 hedef hastanede eşiğin taşınıp taşınmadığı da böylece ölçülür. Ayarlar ana modelle aynıdır
 (LightGBM tek seed + MLP, 0.7/0.3).
 
-  py -3.10 scripts/hastane_arasi_test.py      → models/v4/hastane_arasi_test.json
+  py -3.10 scripts/hastane_arasi_test.py      → models/<sürüm>/hastane_arasi_test.json
 """
 
 import lightgbm as lgb  # noqa: F401  (diğer kütüphanelerden önce yüklenmeli)
@@ -34,11 +34,11 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 
 from evaluate_clinical import UtilityTable
 from features_v4 import V4Scaler, build_v4
-from train_hybrid import LGBM_PARAMS
+from train_hybrid import LGBM_PARAMS, MONOTONE, VERSION, monotone_vector
 
-W_GBM = 0.7
+W_GBM = 0.9 if VERSION == 'v5' else 0.7   # v5: çapraz doğrulamada kat dışında seçilen LightGBM payı
 TEST_FRAC = 0.3
-OUT = os.path.join(ROOT, 'models', 'v4', 'hastane_arasi_test.json')
+OUT = os.path.join(ROOT, 'models', VERSION, 'hastane_arasi_test.json')
 HOSPITALS = ('A', 'B')
 
 
@@ -105,7 +105,10 @@ def main():
         tr, va = pool & ~iv, pool & iv
         dtrain = lgb.Dataset(F[tr], y[tr], free_raw_data=False)
         dval = lgb.Dataset(F[va], y[va], reference=dtrain, free_raw_data=False)
-        b = lgb.train(dict(LGBM_PARAMS, seed=42, bagging_seed=42, feature_fraction_seed=42), dtrain,
+        params = dict(LGBM_PARAMS, seed=42, bagging_seed=42, feature_fraction_seed=42)
+        if MONOTONE:
+            params['monotone_constraints'] = monotone_vector(list(F.columns))
+        b = lgb.train(params, dtrain,
                       num_boost_round=4000, valid_sets=[dval], feval=pr,
                       callbacks=[lgb.early_stopping(200, verbose=False)])
         rows = va | ((hosp == T) & is_test)          # yalnızca gereken satırlar tahmin edilir

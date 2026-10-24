@@ -187,6 +187,9 @@ models/gru_v24_56features/*
 !data/processed/*.pkl
 !models/v3/*.pkl
 !models/v4/*.pkl
+!models/v5/*.pkl
+# v5 deneylerinin kat dışı tahminleri (yeniden üretilebilir, ~10 MB her biri)
+models/v5/oof_*.npy
 !models/optimized/calibrator.pkl
 logs/
 *.log

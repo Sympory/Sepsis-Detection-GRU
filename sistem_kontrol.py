@@ -58,7 +58,7 @@ def main():
         return finish()
 
     import config
-    check('Aktif model', os.path.exists(config.MODEL_PATH), f'{config.FEATURE_SET} → {os.path.relpath(config.MODEL_PATH, ROOT)}')
+    check('Aktif model', os.path.exists(config.MODEL_PATH), f'{config.MODEL_VERSION} → {os.path.relpath(config.MODEL_PATH, ROOT)}')
     check('Kalibratör', os.path.exists(os.path.join(os.path.dirname(config.MODEL_PATH), 'calibrator.pkl')))
 
     # Geçici veritabanı

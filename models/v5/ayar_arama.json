@@ -1,0 +1,1231 @@
+[
+  {
+    "name": "mevcut",
+    "params": {},
+    "roc_auc": 0.8402155582989007,
+    "pr_auc": 0.12603312911448739,
+    "folds": [
+      {
+        "roc_auc": 0.8337474065863388,
+        "pr_auc": 0.11346801354036468,
+        "trees": [
+          297
+        ]
+      },
+      {
+        "roc_auc": 0.8407070882271295,
+        "pr_auc": 0.12628131674592152,
+        "trees": [
+          194
+        ]
+      },
+      {
+        "roc_auc": 0.8461921800832339,
+        "pr_auc": 0.13835005705717593,
+        "trees": [
+          194
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme1",
+    "params": {
+      "learning_rate": 0.035746073669600927,
+      "num_leaves": 16,
+      "min_child_samples": 208,
+      "feature_fraction": 0.714734038724675,
+      "bagging_fraction": 0.5380993171339071,
+      "lambda_l2": 0.4011166904518728,
+      "scale_pos_weight": 6.603593030227075,
+      "max_depth": -1,
+      "min_gain_to_split": 0.0,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8392418275321183,
+    "pr_auc": 0.11877585969871024,
+    "folds": [
+      {
+        "roc_auc": 0.8320581219177363,
+        "pr_auc": 0.10802558659225989,
+        "trees": [
+          366
+        ]
+      },
+      {
+        "roc_auc": 0.8427493122708727,
+        "pr_auc": 0.123036034261196,
+        "trees": [
+          354
+        ]
+      },
+      {
+        "roc_auc": 0.8429180484077459,
+        "pr_auc": 0.12526595824267484,
+        "trees": [
+          413
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme2",
+    "params": {
+      "learning_rate": 0.014547134739259882,
+      "num_leaves": 22,
+      "min_child_samples": 4699,
+      "feature_fraction": 0.6590919267085638,
+      "bagging_fraction": 0.6267339573702737,
+      "lambda_l2": 2.9638959367454842,
+      "scale_pos_weight": 1.8820231864781132,
+      "max_depth": -1,
+      "min_gain_to_split": 0.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8412059131741487,
+    "pr_auc": 0.12523101843462162,
+    "folds": [
+      {
+        "roc_auc": 0.8328044945905588,
+        "pr_auc": 0.11609112180146611,
+        "trees": [
+          1079
+        ]
+      },
+      {
+        "roc_auc": 0.8440051841038365,
+        "pr_auc": 0.12857866442099525,
+        "trees": [
+          581
+        ]
+      },
+      {
+        "roc_auc": 0.8468080608280507,
+        "pr_auc": 0.13102326908140352,
+        "trees": [
+          560
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme3",
+    "params": {
+      "learning_rate": 0.06677813881473799,
+      "num_leaves": 18,
+      "min_child_samples": 220,
+      "feature_fraction": 0.3596342207881582,
+      "bagging_fraction": 0.9781656036746975,
+      "lambda_l2": 22.476207339599902,
+      "scale_pos_weight": 1.3841819455770439,
+      "max_depth": 8,
+      "min_gain_to_split": 1.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8403109361250669,
+    "pr_auc": 0.12367078201924712,
+    "folds": [
+      {
+        "roc_auc": 0.8329522035381659,
+        "pr_auc": 0.11589361867730688,
+        "trees": [
+          176
+        ]
+      },
+      {
+        "roc_auc": 0.8434962634029961,
+        "pr_auc": 0.12636208240140934,
+        "trees": [
+          213
+        ]
+      },
+      {
+        "roc_auc": 0.8444843414340386,
+        "pr_auc": 0.12875664497902511,
+        "trees": [
+          187
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme4",
+    "params": {
+      "learning_rate": 0.019822294907738864,
+      "num_leaves": 18,
+      "min_child_samples": 426,
+      "feature_fraction": 0.786672103371552,
+      "bagging_fraction": 0.6947768329907938,
+      "lambda_l2": 1.357779701527799,
+      "scale_pos_weight": 3.205762684263369,
+      "max_depth": 6,
+      "min_gain_to_split": 0.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8368296200240829,
+    "pr_auc": 0.12221480966742082,
+    "folds": [
+      {
+        "roc_auc": 0.829396295879832,
+        "pr_auc": 0.10587395017838372,
+        "trees": [
+          1162
+        ]
+      },
+      {
+        "roc_auc": 0.8383600308245003,
+        "pr_auc": 0.12662882766199812,
+        "trees": [
+          343
+        ]
+      },
+      {
+        "roc_auc": 0.8427325333679163,
+        "pr_auc": 0.13414165116188065,
+        "trees": [
+          267
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme5",
+    "params": {
+      "learning_rate": 0.021061146568742275,
+      "num_leaves": 21,
+      "min_child_samples": 141,
+      "feature_fraction": 0.3626434484077701,
+      "bagging_fraction": 0.7000528984905332,
+      "lambda_l2": 14.262630320734218,
+      "scale_pos_weight": 1.8448237071846763,
+      "max_depth": 12,
+      "min_gain_to_split": 1.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8394351979575413,
+    "pr_auc": 0.12163492663514756,
+    "folds": [
+      {
+        "roc_auc": 0.8331987359737528,
+        "pr_auc": 0.11023052186638832,
+        "trees": [
+          777
+        ]
+      },
+      {
+        "roc_auc": 0.8409607070171417,
+        "pr_auc": 0.12694821459946276,
+        "trees": [
+          351
+        ]
+      },
+      {
+        "roc_auc": 0.8441461508817293,
+        "pr_auc": 0.1277260434395916,
+        "trees": [
+          718
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme6",
+    "params": {
+      "learning_rate": 0.024735313500589474,
+      "num_leaves": 64,
+      "min_child_samples": 2316,
+      "feature_fraction": 0.43615074486745997,
+      "bagging_fraction": 0.8928827622417936,
+      "lambda_l2": 11.890773423872643,
+      "scale_pos_weight": 3.3582118375791787,
+      "max_depth": -1,
+      "min_gain_to_split": 0.0,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8416704297615966,
+    "pr_auc": 0.12143910133976277,
+    "folds": [
+      {
+        "roc_auc": 0.8340796028761484,
+        "pr_auc": 0.1160980393546664,
+        "trees": [
+          253
+        ]
+      },
+      {
+        "roc_auc": 0.8440970760797667,
+        "pr_auc": 0.12243646330319954,
+        "trees": [
+          205
+        ]
+      },
+      {
+        "roc_auc": 0.8468346103288745,
+        "pr_auc": 0.12578280136142234,
+        "trees": [
+          238
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme7",
+    "params": {
+      "learning_rate": 0.012320349073645957,
+      "num_leaves": 51,
+      "min_child_samples": 150,
+      "feature_fraction": 0.2944029790942486,
+      "bagging_fraction": 0.8252475850433789,
+      "lambda_l2": 10.685558087889039,
+      "scale_pos_weight": 3.3278404280294125,
+      "max_depth": 8,
+      "min_gain_to_split": 1.0,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8408922497536583,
+    "pr_auc": 0.12395601880763912,
+    "folds": [
+      {
+        "roc_auc": 0.8344156500159506,
+        "pr_auc": 0.11456364815049233,
+        "trees": [
+          855
+        ]
+      },
+      {
+        "roc_auc": 0.8427489210714022,
+        "pr_auc": 0.128024974621787,
+        "trees": [
+          481
+        ]
+      },
+      {
+        "roc_auc": 0.8455121781736217,
+        "pr_auc": 0.12927943365063804,
+        "trees": [
+          746
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme8",
+    "params": {
+      "learning_rate": 0.010519622750380464,
+      "num_leaves": 21,
+      "min_child_samples": 273,
+      "feature_fraction": 0.5215506357328125,
+      "bagging_fraction": 0.6799356565024128,
+      "lambda_l2": 4.602837563648617,
+      "scale_pos_weight": 4.836521936882713,
+      "max_depth": 8,
+      "min_gain_to_split": 0.1,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8402824881799816,
+    "pr_auc": 0.12204077568262162,
+    "folds": [
+      {
+        "roc_auc": 0.833253428693275,
+        "pr_auc": 0.11156508634640183,
+        "trees": [
+          1588
+        ]
+      },
+      {
+        "roc_auc": 0.8440402086097546,
+        "pr_auc": 0.12701734838372783,
+        "trees": [
+          1233
+        ]
+      },
+      {
+        "roc_auc": 0.8435538272369152,
+        "pr_auc": 0.1275398923177352,
+        "trees": [
+          1420
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme9",
+    "params": {
+      "learning_rate": 0.03937568854355827,
+      "num_leaves": 153,
+      "min_child_samples": 339,
+      "feature_fraction": 0.5359284151710104,
+      "bagging_fraction": 0.9817060904911066,
+      "lambda_l2": 14.924319208785347,
+      "scale_pos_weight": 1.7689652350867302,
+      "max_depth": 12,
+      "min_gain_to_split": 0.1,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8366554731294452,
+    "pr_auc": 0.12275670948069838,
+    "folds": [
+      {
+        "roc_auc": 0.8301613540574583,
+        "pr_auc": 0.11564936002692547,
+        "trees": [
+          132
+        ]
+      },
+      {
+        "roc_auc": 0.8393361381678006,
+        "pr_auc": 0.12243351979299918,
+        "trees": [
+          98
+        ]
+      },
+      {
+        "roc_auc": 0.8404689271630765,
+        "pr_auc": 0.13018724862217046,
+        "trees": [
+          105
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme10",
+    "params": {
+      "learning_rate": 0.022125179645434513,
+      "num_leaves": 98,
+      "min_child_samples": 279,
+      "feature_fraction": 0.5996233877930925,
+      "bagging_fraction": 0.6642736945580923,
+      "lambda_l2": 8.71028803769085,
+      "scale_pos_weight": 4.139112721451202,
+      "max_depth": -1,
+      "min_gain_to_split": 0.0,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8400071375935821,
+    "pr_auc": 0.12478070783749194,
+    "folds": [
+      {
+        "roc_auc": 0.8352322372394609,
+        "pr_auc": 0.11719083038824574,
+        "trees": [
+          193
+        ]
+      },
+      {
+        "roc_auc": 0.8420349251696868,
+        "pr_auc": 0.12396794509786517,
+        "trees": [
+          255
+        ]
+      },
+      {
+        "roc_auc": 0.8427542503715987,
+        "pr_auc": 0.1331833480263649,
+        "trees": [
+          194
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme11",
+    "params": {
+      "learning_rate": 0.07451988130292289,
+      "num_leaves": 136,
+      "min_child_samples": 709,
+      "feature_fraction": 0.45337969853764126,
+      "bagging_fraction": 0.9120419933486001,
+      "lambda_l2": 0.20074118766260568,
+      "scale_pos_weight": 9.033875083403302,
+      "max_depth": 8,
+      "min_gain_to_split": 1.0,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8246908473542301,
+    "pr_auc": 0.10128772008471532,
+    "folds": [
+      {
+        "roc_auc": 0.8203945403990106,
+        "pr_auc": 0.09924978679738003,
+        "trees": [
+          34
+        ]
+      },
+      {
+        "roc_auc": 0.8239870637260268,
+        "pr_auc": 0.0949844979381696,
+        "trees": [
+          49
+        ]
+      },
+      {
+        "roc_auc": 0.8296909379376531,
+        "pr_auc": 0.10962887551859629,
+        "trees": [
+          56
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme12",
+    "params": {
+      "learning_rate": 0.010569484204865538,
+      "num_leaves": 32,
+      "min_child_samples": 2274,
+      "feature_fraction": 0.20867020802119865,
+      "bagging_fraction": 0.6690183883390479,
+      "lambda_l2": 4.395019291936877,
+      "scale_pos_weight": 1.8726640590195067,
+      "max_depth": 12,
+      "min_gain_to_split": 0.1,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8417404308399509,
+    "pr_auc": 0.12557811853800993,
+    "folds": [
+      {
+        "roc_auc": 0.8353268756995015,
+        "pr_auc": 0.11690823381263346,
+        "trees": [
+          1067
+        ]
+      },
+      {
+        "roc_auc": 0.8425302850532496,
+        "pr_auc": 0.12408112433955659,
+        "trees": [
+          506
+        ]
+      },
+      {
+        "roc_auc": 0.8473641317671016,
+        "pr_auc": 0.13574499746183974,
+        "trees": [
+          707
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme13",
+    "params": {
+      "learning_rate": 0.01631672536321436,
+      "num_leaves": 50,
+      "min_child_samples": 336,
+      "feature_fraction": 0.7027379977565815,
+      "bagging_fraction": 0.5561569002297446,
+      "lambda_l2": 0.3061517791417392,
+      "scale_pos_weight": 1.0855127971938672,
+      "max_depth": -1,
+      "min_gain_to_split": 1.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8393422476013311,
+    "pr_auc": 0.12077047302239574,
+    "folds": [
+      {
+        "roc_auc": 0.833020506205409,
+        "pr_auc": 0.11019893920246494,
+        "trees": [
+          469
+        ]
+      },
+      {
+        "roc_auc": 0.8409316211301464,
+        "pr_auc": 0.11971636431908092,
+        "trees": [
+          272
+        ]
+      },
+      {
+        "roc_auc": 0.844074615468438,
+        "pr_auc": 0.13239611554564132,
+        "trees": [
+          235
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme14",
+    "params": {
+      "learning_rate": 0.02037470169176069,
+      "num_leaves": 41,
+      "min_child_samples": 142,
+      "feature_fraction": 0.24662504921976786,
+      "bagging_fraction": 0.6916746538998316,
+      "lambda_l2": 2.647021461030787,
+      "scale_pos_weight": 2.9201096400069257,
+      "max_depth": 6,
+      "min_gain_to_split": 1.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8386933666095843,
+    "pr_auc": 0.1217146326660337,
+    "folds": [
+      {
+        "roc_auc": 0.8308671199784392,
+        "pr_auc": 0.10699918620219247,
+        "trees": [
+          769
+        ]
+      },
+      {
+        "roc_auc": 0.8404894143853997,
+        "pr_auc": 0.1229958179795832,
+        "trees": [
+          248
+        ]
+      },
+      {
+        "roc_auc": 0.8447235654649139,
+        "pr_auc": 0.13514889381632542,
+        "trees": [
+          214
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme15",
+    "params": {
+      "learning_rate": 0.03959855904257315,
+      "num_leaves": 54,
+      "min_child_samples": 3088,
+      "feature_fraction": 0.6369984865848474,
+      "bagging_fraction": 0.5918163844038733,
+      "lambda_l2": 0.522631921805504,
+      "scale_pos_weight": 3.827632622336768,
+      "max_depth": 6,
+      "min_gain_to_split": 0.0,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8398580391285014,
+    "pr_auc": 0.12187495478262955,
+    "folds": [
+      {
+        "roc_auc": 0.8345459560043349,
+        "pr_auc": 0.11864790860832305,
+        "trees": [
+          202
+        ]
+      },
+      {
+        "roc_auc": 0.8434810731229774,
+        "pr_auc": 0.12080540959782224,
+        "trees": [
+          202
+        ]
+      },
+      {
+        "roc_auc": 0.8415470882581921,
+        "pr_auc": 0.1261715461417434,
+        "trees": [
+          296
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme16",
+    "params": {
+      "learning_rate": 0.023397494062842347,
+      "num_leaves": 25,
+      "min_child_samples": 543,
+      "feature_fraction": 0.6428179060994834,
+      "bagging_fraction": 0.8094567579925332,
+      "lambda_l2": 21.937652722863508,
+      "scale_pos_weight": 5.135186463409191,
+      "max_depth": 12,
+      "min_gain_to_split": 1.0,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8402846380407833,
+    "pr_auc": 0.12039439746135173,
+    "folds": [
+      {
+        "roc_auc": 0.8350898664173234,
+        "pr_auc": 0.11151683745621516,
+        "trees": [
+          371
+        ]
+      },
+      {
+        "roc_auc": 0.844672322747543,
+        "pr_auc": 0.12552544881296349,
+        "trees": [
+          432
+        ]
+      },
+      {
+        "roc_auc": 0.8410917249574837,
+        "pr_auc": 0.12414090611487659,
+        "trees": [
+          755
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme17",
+    "params": {
+      "learning_rate": 0.022375058697918667,
+      "num_leaves": 240,
+      "min_child_samples": 1308,
+      "feature_fraction": 0.6521458806907269,
+      "bagging_fraction": 0.6067751109853781,
+      "lambda_l2": 35.34196680822431,
+      "scale_pos_weight": 1.0359542170744955,
+      "max_depth": 12,
+      "min_gain_to_split": 1.0,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8418933842524469,
+    "pr_auc": 0.12417013890070953,
+    "folds": [
+      {
+        "roc_auc": 0.8366561400919489,
+        "pr_auc": 0.11895981416017337,
+        "trees": [
+          388
+        ]
+      },
+      {
+        "roc_auc": 0.8442434534740691,
+        "pr_auc": 0.1274158476099331,
+        "trees": [
+          278
+        ]
+      },
+      {
+        "roc_auc": 0.8447805591913224,
+        "pr_auc": 0.1261347549320221,
+        "trees": [
+          412
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme18",
+    "params": {
+      "learning_rate": 0.057939860491857544,
+      "num_leaves": 99,
+      "min_child_samples": 268,
+      "feature_fraction": 0.30108050633139843,
+      "bagging_fraction": 0.6933170893849845,
+      "lambda_l2": 0.15624357996613367,
+      "scale_pos_weight": 1.1887063751728173,
+      "max_depth": 6,
+      "min_gain_to_split": 0.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8347232464655421,
+    "pr_auc": 0.11237480406523555,
+    "folds": [
+      {
+        "roc_auc": 0.8271563488429969,
+        "pr_auc": 0.10506362810821027,
+        "trees": [
+          252
+        ]
+      },
+      {
+        "roc_auc": 0.8378199696368673,
+        "pr_auc": 0.10878355157687683,
+        "trees": [
+          163
+        ]
+      },
+      {
+        "roc_auc": 0.839193420916762,
+        "pr_auc": 0.12327723251061956,
+        "trees": [
+          252
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme19",
+    "params": {
+      "learning_rate": 0.05935961406190802,
+      "num_leaves": 16,
+      "min_child_samples": 880,
+      "feature_fraction": 0.6255273163062431,
+      "bagging_fraction": 0.8327138509531999,
+      "lambda_l2": 16.85668227716958,
+      "scale_pos_weight": 15.414065064429527,
+      "max_depth": 8,
+      "min_gain_to_split": 0.1,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8359442978340225,
+    "pr_auc": 0.11670999415551535,
+    "folds": [
+      {
+        "roc_auc": 0.8297866965118175,
+        "pr_auc": 0.10893883317314525,
+        "trees": [
+          190
+        ]
+      },
+      {
+        "roc_auc": 0.8395877046510956,
+        "pr_auc": 0.11433493376003631,
+        "trees": [
+          198
+        ]
+      },
+      {
+        "roc_auc": 0.8384584923391547,
+        "pr_auc": 0.12685621553336443,
+        "trees": [
+          165
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme20",
+    "params": {
+      "learning_rate": 0.04593110763367167,
+      "num_leaves": 46,
+      "min_child_samples": 109,
+      "feature_fraction": 0.6718380608483951,
+      "bagging_fraction": 0.658681673851864,
+      "lambda_l2": 37.646590359120175,
+      "scale_pos_weight": 3.194388142340607,
+      "max_depth": 8,
+      "min_gain_to_split": 0.1,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8402956773066442,
+    "pr_auc": 0.12252448008040732,
+    "folds": [
+      {
+        "roc_auc": 0.8314018157099696,
+        "pr_auc": 0.11396945280721002,
+        "trees": [
+          174
+        ]
+      },
+      {
+        "roc_auc": 0.8435782644070899,
+        "pr_auc": 0.12197485361653276,
+        "trees": [
+          197
+        ]
+      },
+      {
+        "roc_auc": 0.8459069518028732,
+        "pr_auc": 0.1316291338174792,
+        "trees": [
+          118
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme21",
+    "params": {
+      "learning_rate": 0.02379381293246982,
+      "num_leaves": 223,
+      "min_child_samples": 1376,
+      "feature_fraction": 0.2644124492806639,
+      "bagging_fraction": 0.7829974432590421,
+      "lambda_l2": 0.10901079701308565,
+      "scale_pos_weight": 6.258631496865193,
+      "max_depth": 12,
+      "min_gain_to_split": 1.0,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8382674411771124,
+    "pr_auc": 0.12257164410640058,
+    "folds": [
+      {
+        "roc_auc": 0.8332597881730459,
+        "pr_auc": 0.1169190408537639,
+        "trees": [
+          193
+        ]
+      },
+      {
+        "roc_auc": 0.838299776933751,
+        "pr_auc": 0.12105653049349369,
+        "trees": [
+          156
+        ]
+      },
+      {
+        "roc_auc": 0.8432427584245406,
+        "pr_auc": 0.12973936097194413,
+        "trees": [
+          154
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme22",
+    "params": {
+      "learning_rate": 0.013097766397888039,
+      "num_leaves": 49,
+      "min_child_samples": 1071,
+      "feature_fraction": 0.5929369132182104,
+      "bagging_fraction": 0.5856001673901277,
+      "lambda_l2": 0.31079840216487453,
+      "scale_pos_weight": 1.6688835039964245,
+      "max_depth": 8,
+      "min_gain_to_split": 1.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8413485108055355,
+    "pr_auc": 0.12247082957696803,
+    "folds": [
+      {
+        "roc_auc": 0.8338263331744581,
+        "pr_auc": 0.11003959318404773,
+        "trees": [
+          902
+        ]
+      },
+      {
+        "roc_auc": 0.8436325590411953,
+        "pr_auc": 0.12490545397230932,
+        "trees": [
+          473
+        ]
+      },
+      {
+        "roc_auc": 0.846586640200953,
+        "pr_auc": 0.13246744157454704,
+        "trees": [
+          476
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme23",
+    "params": {
+      "learning_rate": 0.020399869792084538,
+      "num_leaves": 99,
+      "min_child_samples": 304,
+      "feature_fraction": 0.21033816280442133,
+      "bagging_fraction": 0.8113940372559125,
+      "lambda_l2": 4.023970653698144,
+      "scale_pos_weight": 1.0093518116138438,
+      "max_depth": 6,
+      "min_gain_to_split": 0.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8393225767935815,
+    "pr_auc": 0.1209628631751441,
+    "folds": [
+      {
+        "roc_auc": 0.8315203960919395,
+        "pr_auc": 0.10955750405378013,
+        "trees": [
+          822
+        ]
+      },
+      {
+        "roc_auc": 0.84105558137309,
+        "pr_auc": 0.12310750393269929,
+        "trees": [
+          355
+        ]
+      },
+      {
+        "roc_auc": 0.8453917529157149,
+        "pr_auc": 0.13022358153895286,
+        "trees": [
+          346
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme24",
+    "params": {
+      "learning_rate": 0.06753301005401105,
+      "num_leaves": 25,
+      "min_child_samples": 1426,
+      "feature_fraction": 0.581178293072115,
+      "bagging_fraction": 0.9361422541591936,
+      "lambda_l2": 0.10020877780184947,
+      "scale_pos_weight": 12.653279534596857,
+      "max_depth": 6,
+      "min_gain_to_split": 0.1,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8309918697863475,
+    "pr_auc": 0.11447526098243355,
+    "folds": [
+      {
+        "roc_auc": 0.8198963811502926,
+        "pr_auc": 0.102053815789054,
+        "trees": [
+          303
+        ]
+      },
+      {
+        "roc_auc": 0.8352703685938278,
+        "pr_auc": 0.11708005967107221,
+        "trees": [
+          89
+        ]
+      },
+      {
+        "roc_auc": 0.8378088596149222,
+        "pr_auc": 0.12429190748717442,
+        "trees": [
+          124
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme25",
+    "params": {
+      "learning_rate": 0.011527706092981833,
+      "num_leaves": 75,
+      "min_child_samples": 214,
+      "feature_fraction": 0.2929377690499505,
+      "bagging_fraction": 0.5600058308862363,
+      "lambda_l2": 0.9620834776806845,
+      "scale_pos_weight": 5.4591594258249545,
+      "max_depth": 12,
+      "min_gain_to_split": 0.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8407372568439317,
+    "pr_auc": 0.12398749720128117,
+    "folds": [
+      {
+        "roc_auc": 0.8340322409558135,
+        "pr_auc": 0.11585238073729791,
+        "trees": [
+          613
+        ]
+      },
+      {
+        "roc_auc": 0.8432120608860472,
+        "pr_auc": 0.1236628396587896,
+        "trees": [
+          347
+        ]
+      },
+      {
+        "roc_auc": 0.8449674686899347,
+        "pr_auc": 0.13244727120775598,
+        "trees": [
+          331
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme26",
+    "params": {
+      "learning_rate": 0.011100040264184147,
+      "num_leaves": 47,
+      "min_child_samples": 1297,
+      "feature_fraction": 0.6335353917526167,
+      "bagging_fraction": 0.5151364400835796,
+      "lambda_l2": 1.6174314565139345,
+      "scale_pos_weight": 4.0253667240063224,
+      "max_depth": 6,
+      "min_gain_to_split": 0.1,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8412724515940315,
+    "pr_auc": 0.12359268927230528,
+    "folds": [
+      {
+        "roc_auc": 0.8348174191246219,
+        "pr_auc": 0.11592739649099239,
+        "trees": [
+          990
+        ]
+      },
+      {
+        "roc_auc": 0.8432526928901171,
+        "pr_auc": 0.12409046675522722,
+        "trees": [
+          843
+        ]
+      },
+      {
+        "roc_auc": 0.8457472427673557,
+        "pr_auc": 0.13076020457069626,
+        "trees": [
+          885
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme27",
+    "params": {
+      "learning_rate": 0.036008820631132775,
+      "num_leaves": 39,
+      "min_child_samples": 617,
+      "feature_fraction": 0.5790824044189367,
+      "bagging_fraction": 0.9154963888655449,
+      "lambda_l2": 32.871519913734296,
+      "scale_pos_weight": 2.8915432073414276,
+      "max_depth": 12,
+      "min_gain_to_split": 0.1,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.838917350208319,
+    "pr_auc": 0.12303369958973866,
+    "folds": [
+      {
+        "roc_auc": 0.8322731548686,
+        "pr_auc": 0.11107320436274953,
+        "trees": [
+          232
+        ]
+      },
+      {
+        "roc_auc": 0.841685604221799,
+        "pr_auc": 0.12566892455612344,
+        "trees": [
+          216
+        ]
+      },
+      {
+        "roc_auc": 0.8427932915345578,
+        "pr_auc": 0.132358969850343,
+        "trees": [
+          222
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme28",
+    "params": {
+      "learning_rate": 0.06859601747016214,
+      "num_leaves": 244,
+      "min_child_samples": 1958,
+      "feature_fraction": 0.43319432185743123,
+      "bagging_fraction": 0.6863304414085645,
+      "lambda_l2": 3.376590066596334,
+      "scale_pos_weight": 1.8835524702257433,
+      "max_depth": 12,
+      "min_gain_to_split": 1.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.8341232397927952,
+    "pr_auc": 0.11948218078623345,
+    "folds": [
+      {
+        "roc_auc": 0.8298282309746894,
+        "pr_auc": 0.11178110749981902,
+        "trees": [
+          79
+        ]
+      },
+      {
+        "roc_auc": 0.8331874584293235,
+        "pr_auc": 0.11827185946623464,
+        "trees": [
+          30
+        ]
+      },
+      {
+        "roc_auc": 0.8393540299743726,
+        "pr_auc": 0.12839357539264665,
+        "trees": [
+          35
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme29",
+    "params": {
+      "learning_rate": 0.013266450321227174,
+      "num_leaves": 115,
+      "min_child_samples": 214,
+      "feature_fraction": 0.4681888983908326,
+      "bagging_fraction": 0.6278082702891119,
+      "lambda_l2": 0.12514308850529088,
+      "scale_pos_weight": 12.727242846366003,
+      "max_depth": 12,
+      "min_gain_to_split": 0.1,
+      "es_metric": "auc"
+    },
+    "roc_auc": 0.8377811103154494,
+    "pr_auc": 0.12168483205826841,
+    "folds": [
+      {
+        "roc_auc": 0.8327377384143904,
+        "pr_auc": 0.1160325710661468,
+        "trees": [
+          305
+        ]
+      },
+      {
+        "roc_auc": 0.8388901950782888,
+        "pr_auc": 0.11730402532023634,
+        "trees": [
+          244
+        ]
+      },
+      {
+        "roc_auc": 0.8417153974536694,
+        "pr_auc": 0.1317178997884221,
+        "trees": [
+          277
+        ]
+      }
+    ]
+  },
+  {
+    "name": "deneme30",
+    "params": {
+      "learning_rate": 0.025418223532784914,
+      "num_leaves": 72,
+      "min_child_samples": 3924,
+      "feature_fraction": 0.7003874286271838,
+      "bagging_fraction": 0.9807605932177813,
+      "lambda_l2": 8.664789885643657,
+      "scale_pos_weight": 2.1358334063369617,
+      "max_depth": 6,
+      "min_gain_to_split": 1.0,
+      "es_metric": "pr"
+    },
+    "roc_auc": 0.838814665028924,
+    "pr_auc": 0.12170815241020853,
+    "folds": [
+      {
+        "roc_auc": 0.8290614068869521,
+        "pr_auc": 0.11195531250773856,
+        "trees": [
+          877
+        ]
+      },
+      {
+        "roc_auc": 0.8426762331829516,
+        "pr_auc": 0.12095325026492246,
+        "trees": [
+          583
+        ]
+      },
+      {
+        "roc_auc": 0.8447063550168681,
+        "pr_auc": 0.13221589445796458,
+        "trees": [
+          318
+        ]
+      }
+    ]
+  }
+]

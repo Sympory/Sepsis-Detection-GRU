@@ -13,9 +13,9 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'build', 'hf_space')
 
 APP_FILES = ['app.py', 'config.py', 'db.py', 'security.py', 'ml_service.py', 'features.py', 'features_v4.py',
-             'gbm_numpy.py', 'explain.py', 'reliability.py',
+             'gbm_numpy.py', 'explain.py', 'reliability.py', 'olcek.py',
              'index.html', 'login.html', 'script.js', 'login.js', 'style.css']
-MODEL_FILES = ['model_card.json', 'mlp.keras', 'trees.json', 'scaler.pkl', 'calibrator.pkl', 'reliability_stats.json',
+MODEL_FILES = ['score_map.json', 'model_card.json', 'mlp.keras', 'trees.json', 'scaler.pkl', 'calibrator.pkl', 'reliability_stats.json',
                'clinical_comparison.json', 'cross_validation.json', 'hastane_arasi_test.json', 'hasta_bazli_test.json']
 DEPLOY_FILES = ['Dockerfile', 'requirements.txt', 'space_start.py', 'README.md']
 
@@ -37,7 +37,7 @@ def main():
     for f in APP_FILES:
         copy(os.path.join(ROOT, f), os.path.join(OUT, f))
     for f in MODEL_FILES:
-        copy(os.path.join(ROOT, 'models', 'v4', f), os.path.join(OUT, 'models', 'v4', f))
+        copy(os.path.join(ROOT, 'models', 'v5', f), os.path.join(OUT, 'models', 'v5', f))
     copy(os.path.join(ROOT, 'scripts', 'demo_hastalari.py'), os.path.join(OUT, 'scripts', 'demo_hastalari.py'))
     for f in DEPLOY_FILES:
         copy(os.path.join(ROOT, 'deploy', 'huggingface', f), os.path.join(OUT, f))

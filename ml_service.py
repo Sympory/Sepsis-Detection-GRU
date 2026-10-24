@@ -40,6 +40,7 @@ estimator = None
 gbm = None               # v4: LightGBM ağaçları (saf NumPy)
 v4_scaler = None         # v4: sinir ağı girdisi ölçekleyici
 gbm_weight = 0.0         # v4: birleşimde LightGBM ağırlığı
+score_map = None         # v5: skor ölçeği eşleme (olcek.py); yoksa ham skor
 numerical_columns = []
 categorical_columns = []
 
@@ -183,14 +184,16 @@ def load_model_and_preprocessing():
 
 def _load_v4_components():
     """v4 hibrit: sinir ağı (yüklendi) + LightGBM ağaçları (NumPy) + ölçekleyici"""
-    global gbm, v4_scaler, gbm_weight, feature_stats
+    global gbm, v4_scaler, gbm_weight, feature_stats, score_map
     from gbm_numpy import NumpyGBM
+    from olcek import ScoreMap
     directory = os.path.dirname(MODEL_PATH)
     print("\n[2/2] v4 hibrit bilesenleri yukleniyor...")
     gbm = NumpyGBM.load(os.path.join(directory, 'trees.json'))
     with open(os.path.join(directory, 'scaler.pkl'), 'rb') as f:
         v4_scaler = pickle.load(f)
     gbm_weight = float(MODEL_INFO.get('ensemble_weight_lightgbm', 0.5))
+    score_map = ScoreMap.load(directory)       # v5: skorlar risk sınıflarının ölçeğine (v4) eşlenir
     feature_stats = v4_scaler.clinical_stats()
     n_trees = sum(len(m.trees) for m in getattr(gbm, 'members', [gbm]))
     print(f"  [OK] LightGBM {n_trees} agac (NumPy) + sinir agi · {len(v4_scaler.columns)} ozellik · "
@@ -360,9 +363,9 @@ def _predict_v4(grid_rows):
     p_gbm = float(gbm.predict(feats.to_numpy())[0])
     x = v4_scaler.transform(feats)
     p_mlp = float(model.predict(x, verbose=0).reshape(-1)[0])
-    prediction = gbm_weight * p_gbm + (1 - gbm_weight) * p_mlp
-    mc_samples = gbm_weight * p_gbm + (1 - gbm_weight) * mc_dropout_predict(model, x)
-    components = {'lightgbm': p_gbm, 'neural_net': p_mlp, 'weight_lightgbm': gbm_weight}
+    prediction = score_map(gbm_weight * p_gbm + (1 - gbm_weight) * p_mlp)
+    mc_samples = score_map(gbm_weight * p_gbm + (1 - gbm_weight) * mc_dropout_predict(model, x))
+    components = {'lightgbm': score_map(p_gbm), 'neural_net': score_map(p_mlp), 'weight_lightgbm': gbm_weight}
     try:
         from explain import explain
         components['explanation'] = explain(gbm, feats.to_numpy()[0])

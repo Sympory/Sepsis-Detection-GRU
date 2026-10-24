@@ -2,7 +2,7 @@
 Klinik skorlarla karşılaştırma ve PhysioNet 2019 Utility skoru.
 
 Aynı test hastalarında:
-  - Hibrit v4 ve GRU v3
+  - Aktif hibrit model (v5/v4) ve GRU v3
   - Hastanelerde kullanılan skorlar: SIRS, qSOFA (kısmi), NEWS2 (kısmi)
 için ROC-AUC, PR-AUC, standart kesim noktalarında duyarlılık/özgüllük ve
 PhysioNet 2019 Challenge'ın resmi Normalized Utility skoru hesaplanır.
@@ -10,7 +10,7 @@ PhysioNet 2019 Challenge'ın resmi Normalized Utility skoru hesaplanır.
 Modellerin Utility eşiği VALİDASYON hastalarında seçilir.
 Not: GKS (bilinç) verisi olmadığı için qSOFA ve NEWS2 kısmi hesaplanır.
 
-  py -3.10 scripts/evaluate_clinical.py     → models/v4/clinical_comparison.json
+  py -3.10 scripts/evaluate_clinical.py     → <aktif model klasörü>/clinical_comparison.json
 """
 
 import json
@@ -33,8 +33,11 @@ from features import build_hourly_features, make_windows
 from features_v4 import build_v4
 from gbm_numpy import NumpyGBM
 from train_v3 import split_patients
+from config import MODEL_PATH
 
-OUT = os.path.join(ROOT, 'models', 'v4', 'clinical_comparison.json')
+MODEL_DIR = os.path.dirname(MODEL_PATH)   # aktif model (varsayılan models/v5)
+
+OUT = os.path.join(MODEL_DIR, 'clinical_comparison.json')
 
 
 # ============================================================================
@@ -165,13 +168,13 @@ def main():
     va, te = (np.isin(pid, list(parts[k])) for k in ('val', 'test'))
     y = df['SepsisLabel'].to_numpy()
 
-    print('Hibrit v4 tahminleri...', flush=True)
-    card = json.load(open(os.path.join(ROOT, 'models', 'v4', 'model_card.json'), encoding='utf-8'))
+    print(f'Hibrit {os.path.basename(MODEL_DIR)} tahminleri...', flush=True)
+    card = json.load(open(os.path.join(MODEL_DIR, 'model_card.json'), encoding='utf-8'))
     w = card['ensemble_weight_lightgbm']
     F = build_v4(df, group_col='Patient_ID')
-    gbm = NumpyGBM.load(os.path.join(ROOT, 'models', 'v4', 'trees.json'))
-    scaler = pickle.load(open(os.path.join(ROOT, 'models', 'v4', 'scaler.pkl'), 'rb'))
-    mlp = keras.models.load_model(os.path.join(ROOT, 'models', 'v4', 'mlp.keras'))
+    gbm = NumpyGBM.load(os.path.join(MODEL_DIR, 'trees.json'))
+    scaler = pickle.load(open(os.path.join(MODEL_DIR, 'scaler.pkl'), 'rb'))
+    mlp = keras.models.load_model(os.path.join(MODEL_DIR, 'mlp.keras'))
     mask = va | te
     p_v4 = np.full(len(df), np.nan)
     p_v4[mask] = w * gbm.predict(F[mask].to_numpy()) + (1 - w) * mlp.predict(scaler.transform(F[mask]), batch_size=16384, verbose=0).ravel()
@@ -194,7 +197,7 @@ def main():
     result = {'note': 'Test hastaları (8.066). qSOFA ve NEWS2 bilinç (GKS) olmadan kısmi hesaplandı. '
                       'Utility eşikleri validasyonda seçildi.', 'models': {}}
 
-    for name, p in (('Hibrit v4', p_v4), ('GRU v3', p_v3)):
+    for name, p in ((f"Hibrit {os.path.basename(MODEL_DIR)}", p_v4), ('GRU v3', p_v3)):
         grid = np.quantile(p[va], np.linspace(0.5, 0.995, 60))
         utils = [U_val.score(p[va] >= t) for t in grid]
         t_best = float(grid[int(np.argmax(utils))])
