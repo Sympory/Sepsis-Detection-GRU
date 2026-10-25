@@ -223,8 +223,14 @@ def get_patient(patient_pk):
         return fail('Hasta bulunamadı', 404)
     open_alarm = g.db.execute("SELECT * FROM alarms WHERE patient_id = ? AND status = 'open' ORDER BY id DESC LIMIT 1",
                               (patient_pk,)).fetchone()
+    # Son onaylanan alarm: doktorun notu hasta sayfasında hemşireye de görünsün
+    last_ack = g.db.execute(
+        '''SELECT a.*, u.full_name AS acknowledged_by_name FROM alarms a LEFT JOIN users u ON u.id = a.acknowledged_by
+           WHERE a.patient_id = ? AND a.status = 'acknowledged' ORDER BY a.acknowledged_at DESC, a.id DESC LIMIT 1''',
+        (patient_pk,)).fetchone()
     return ok({'patient': patient, 'hourly_data': db.get_observations(g.db, patient_pk),
-               'open_alarm': dict(open_alarm) if open_alarm else None})
+               'open_alarm': dict(open_alarm) if open_alarm else None,
+               'last_acknowledged_alarm': dict(last_ack) if last_ack else None})
 
 
 @app.route('/api/patients/<int:patient_pk>/hourly-data', methods=['POST'])

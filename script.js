@@ -476,7 +476,7 @@ async function openPatient(id, opts = {}) {
         document.getElementById('detail-avatar').textContent = initials(currentPatient.name);
 
         renderPatientActions(discharged);
-        renderPatientAlarm(d.open_alarm);
+        renderPatientAlarm(d.open_alarm, d.last_acknowledged_alarm);
 
         const canEnter = can('observations.create') && !discharged;
         document.getElementById('entry-card').hidden = !canEnter;
@@ -518,9 +518,15 @@ function renderPatientActions(discharged) {
     document.getElementById('patient-actions').innerHTML = parts.join('');
 }
 
-function renderPatientAlarm(alarm) {
+function renderPatientAlarm(alarm, lastAck) {
     const box = document.getElementById('patient-alarm');
-    if (!alarm) { box.innerHTML = ''; return; }
+    const ackHtml = lastAck ? `
+        <div class="banner banner-ok patient-alarm">
+            <div><strong>Son alarm onaylandı:</strong> ${escapeHtml(lastAck.acknowledged_by_name || '—')} · ${formatDateTime(lastAck.acknowledged_at)}
+                <span class="muted">(${escapeHtml(lastAck.risk_level)}, skor ${pct(lastAck.score)})</span><br>
+                <strong>Not:</strong> ${escapeHtml(lastAck.note || '')}</div>
+        </div>` : '';
+    if (!alarm) { box.innerHTML = ackHtml; return; }
     box.innerHTML = `
         <div class="banner banner-danger patient-alarm">
             <div><strong>Açık alarm:</strong> ${escapeHtml(alarm.risk_level)} · skor ${pct(alarm.score)} · ${formatDateTime(alarm.created_at)}</div>
@@ -529,7 +535,7 @@ function renderPatientAlarm(alarm) {
                        <input type="text" placeholder="Klinik not" required minlength="3">
                        <button class="btn btn-primary btn-sm">Onayla</button></form>`
                 : '<span class="small">Doktor onayı bekleniyor</span>'}
-        </div>`;
+        </div>` + (lastAck ? ackHtml.replace('Son alarm onaylandı', 'Önceki alarm onaylandı') : '');
 }
 
 const ACTION_LABELS = {

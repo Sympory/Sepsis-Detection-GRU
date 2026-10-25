@@ -123,3 +123,14 @@ def test_clinical_rules_forget_old_labs(ml, clients, patient):
     add(nurse, patient, 1, dict(NORMAL, Lactate=4.0))
     r = add(nurse, patient, 30, NORMAL).get_json()
     assert not [f for f in r['reliability']['red_flags'] if f['feature'] == 'Lactate']
+
+
+def test_nurse_sees_doctor_note_on_patient_page(ml, clients, patient):
+    """Doktorun alarm notu, alarm kapandıktan sonra hasta sayfasında hemşireye de görünmeli."""
+    add(clients['nurse'], patient, 1, SEPTIC)
+    alarm = clients['doctor'].get('/api/alarms').get_json()['alarms'][0]
+    clients['doctor'].post(f"/api/alarms/{alarm['id']}/acknowledge", json={'note': 'Kültür alındı, antibiyotik başlandı'})
+    d = clients['nurse'].get(f'/api/patients/{patient}').get_json()
+    assert d['open_alarm'] is None
+    assert d['last_acknowledged_alarm']['note'] == 'Kültür alındı, antibiyotik başlandı'
+    assert d['last_acknowledged_alarm']['acknowledged_by_name']
